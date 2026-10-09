@@ -53,3 +53,7 @@ uv pip install --python .venv/bin/python pytest-homeassistant-custom-component
 ```
 
 Tests run against an in-memory fake of the UISP API (`tests/conftest.py`).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
