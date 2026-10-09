@@ -1,0 +1,15 @@
+power_cycle_port:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: uisp_nms
+          domain: switch
+    off_seconds:
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: s

@@ -1,0 +1,107 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to UISP",
+        "description": "Create an API token in UISP under Settings → Users → API Tokens. A read-only token is enough for monitoring; switching PoE or ports needs a token with write access.",
+        "data": {
+          "url": "UISP URL",
+          "api_token": "API token"
+        },
+        "data_description": {
+          "url": "For example https://uisp.example.com"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure UISP",
+        "description": "Change the URL or API token (leave the token blank to keep the current one). If UISP's certificate was replaced, submit unchanged to review and trust the new one.",
+        "data": {
+          "url": "UISP URL",
+          "api_token": "API token"
+        }
+      },
+      "trust_certificate": {
+        "title": "Trust UISP's certificate?",
+        "description": "{host} uses a certificate that cannot be verified (UISP's default is self-signed). Its SHA-256 fingerprint is:\n\n`{fingerprint}`\n\nIf this matches the certificate your UISP server uses, submit to trust exactly this certificate. Home Assistant will refuse to connect if it changes."
+      },
+      "reauth_confirm": {
+        "title": "New UISP API token",
+        "description": "UISP at {url} rejected the API token. Enter a new one.",
+        "data": {
+          "api_token": "API token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to UISP.",
+      "invalid_auth": "UISP rejected the API token.",
+      "invalid_url": "Enter a full URL starting with https://.",
+      "certificate": "The certificate does not match the fingerprint.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This UISP server is already configured.",
+      "cannot_connect": "Cannot connect to UISP.",
+      "reauth_successful": "API token updated.",
+      "reconfigure_successful": "UISP reconfigured.",
+      "unique_id_mismatch": "That is a different UISP server; add it as a new integration instead."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "connected": { "name": "Connected to UISP" },
+      "link": { "name": "{port} link" }
+    },
+    "sensor": {
+      "cpu": { "name": "CPU usage" },
+      "ram": { "name": "Memory usage" },
+      "temperature": { "name": "Temperature" },
+      "last_boot": { "name": "Last boot" },
+      "rx_rate": { "name": "{port} RX rate" },
+      "tx_rate": { "name": "{port} TX rate" }
+    },
+    "switch": {
+      "poe": { "name": "{port} PoE" },
+      "port_enabled": { "name": "{port} enabled" }
+    },
+    "select": {
+      "poe_output": {
+        "name": "{port} PoE output",
+        "state": {
+          "off": "Off",
+          "active": "Active (48V)",
+          "24v": "24V passive",
+          "48v": "48V passive",
+          "54v": "54V passive"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "poe_output_unknown": {
+      "message": "{port} offers more than one PoE output and the last one used is unknown. Choose it with the {port} PoE output entity, so the wrong voltage is never applied."
+    },
+    "not_poe_switch": {
+      "message": "{entity_id} is not a UISP PoE switch."
+    },
+    "poe_not_on": {
+      "message": "{entity_id} is off; only a port that is supplying power can be power-cycled."
+    }
+  },
+  "services": {
+    "power_cycle_port": {
+      "name": "Power-cycle port",
+      "description": "Turns a port's PoE off, waits, and turns it back on with the same output. Useful to restart a stuck access point or camera.",
+      "fields": {
+        "entity_id": {
+          "name": "PoE switch",
+          "description": "The port's PoE switch entity."
+        },
+        "off_seconds": {
+          "name": "Off time",
+          "description": "Seconds to keep power off."
+        }
+      }
+    }
+  }
+}

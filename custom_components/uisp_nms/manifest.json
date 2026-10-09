@@ -1,0 +1,11 @@
+{
+  "domain": "uisp_nms",
+  "name": "UISP",
+  "codeowners": [],
+  "config_flow": true,
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "loggers": ["custom_components.uisp_nms"],
+  "requirements": [],
+  "version": "0.1.0"
+}
