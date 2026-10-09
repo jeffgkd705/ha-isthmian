@@ -1,11 +1,17 @@
 {
   "domain": "uisp_nms",
-  "name": "UISP",
-  "codeowners": [],
+  "name": "UISP NMS",
+  "codeowners": [
+    "@jeffgkd705"
+  ],
   "config_flow": true,
+  "documentation": "https://github.com/jeffgkd705/ha-uisp-nms",
   "integration_type": "hub",
   "iot_class": "local_polling",
-  "loggers": ["custom_components.uisp_nms"],
+  "issue_tracker": "https://github.com/jeffgkd705/ha-uisp-nms/issues",
+  "loggers": [
+    "custom_components.uisp_nms"
+  ],
   "requirements": [],
   "version": "0.1.0"
 }

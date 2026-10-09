@@ -144,7 +144,7 @@ class UispConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         self._abort_if_unique_id_configured()
         return self.async_create_entry(
-            title=f"UISP ({urlsplit(self._data[CONF_URL]).hostname})", data=self._data
+            title=f"UISP NMS ({urlsplit(self._data[CONF_URL]).hostname})", data=self._data
         )
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:

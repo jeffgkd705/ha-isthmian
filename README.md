@@ -1,4 +1,6 @@
-# UISP for Home Assistant
+# UISP NMS for Home Assistant
+
+*Unofficial: not made, supported or endorsed by Ubiquiti.*
 
 Monitor and control the devices managed by a self-hosted UISP (UNMS) server — EdgeRouters, EdgeSwitches and other Ubiquiti devices — through UISP's API with a single API token. No device passwords are stored in Home Assistant.
 
@@ -21,7 +23,7 @@ Service **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 
 
 - **PoE voltage is never guessed.** Turning a PoE switch on restores the output the port last used (remembered across restarts). On ports with several outputs and no known last output, turning on is refused; pick the output with the **PoE output** select. Passive 24V into a device that expects 802.3af/at (or the reverse) can damage it or leave it unpowered.
 - **PoE can power other switches.** If a switch is powered from another switch's PoE port, turning that PoE off (or power-cycling it) takes down the downstream switch and everything behind it.
-- **Port enable switches are disabled by default.** Disabling the port a device uses to reach UISP cuts it off, and it can then only be re-enabled locally on the device. Enable only the ones you need, in **Settings → Devices & services → UISP → entities**.
+- **Port enable switches are disabled by default.** Disabling the port a device uses to reach UISP cuts it off, and it can then only be re-enabled locally on the device. Enable only the ones you need, in **Settings → Devices & services → UISP NMS → entities**.
 
 ## Requirements
 
@@ -31,9 +33,9 @@ Service **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 
 
 ## Install
 
-1. Copy `custom_components/uisp_nms` into your Home Assistant `config/custom_components/` folder (or add this repository to HACS as a custom repository).
+1. In HACS, add `https://github.com/jeffgkd705/ha-uisp-nms` as a custom repository (type: Integration) and install **UISP NMS**. Or copy `custom_components/uisp_nms` into your Home Assistant `config/custom_components/` folder.
 2. Restart Home Assistant.
-3. **Settings → Devices & services → Add integration → UISP**. Enter the UISP URL (e.g. `https://uisp.example.com`) and the API token.
+3. **Settings → Devices & services → Add integration → UISP NMS**. Enter the UISP URL (e.g. `https://uisp.example.com`) and the API token.
 4. If UISP uses its default self-signed certificate, you are shown its SHA-256 fingerprint. Check it matches your server (for example in the browser's certificate viewer) and submit to trust exactly that certificate. If the certificate is ever replaced, the integration stops connecting until you confirm the new one with **Reconfigure**.
 
 ## Notes

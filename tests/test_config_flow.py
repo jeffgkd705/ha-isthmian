@@ -30,7 +30,7 @@ async def test_verified_certificate(hass: HomeAssistant, mock_get_devices: Async
     with patch("custom_components.uisp_nms.async_setup_entry", return_value=True):
         result = await _start(hass)
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["title"] == "UISP (uisp.example.test)"
+    assert result["title"] == "UISP NMS (uisp.example.test)"
     assert result["data"] == {CONF_URL: URL, CONF_API_TOKEN: "token"}
     assert result["result"].unique_id == "uisp.example.test"
 

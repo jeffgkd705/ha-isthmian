@@ -138,7 +138,7 @@ def config_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         unique_id="uisp.example.test",
-        title="UISP (uisp.example.test)",
+        title="UISP NMS (uisp.example.test)",
         data={CONF_URL: URL, CONF_API_TOKEN: "token", CONF_FINGERPRINT: FINGERPRINT},
     )
 

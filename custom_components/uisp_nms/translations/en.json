@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to UISP",
+        "title": "Connect to UISP NMS",
         "description": "Create an API token in UISP under Settings → Users → API Tokens. A read-only token is enough for monitoring; switching PoE or ports needs a token with write access.",
         "data": {
           "url": "UISP URL",
@@ -13,7 +13,7 @@
         }
       },
       "reconfigure": {
-        "title": "Reconfigure UISP",
+        "title": "Reconfigure UISP NMS",
         "description": "Change the URL or API token (leave the token blank to keep the current one). If UISP's certificate was replaced, submit unchanged to review and trust the new one.",
         "data": {
           "url": "UISP URL",
