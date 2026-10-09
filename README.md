@@ -27,7 +27,7 @@ Service **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 
 
 ## Requirements
 
-- Home Assistant 2025.1 or later
+- Home Assistant 2026.2 or later (tested on 2026.2.3 and 2026.10.0)
 - A self-hosted UISP server (tested with UISP 3.1.65: ER-4, ES-10X, ES-8-150W, ES-24-Lite)
 - A UISP API token (**UISP → Settings → Users → API Tokens**, as an admin). A read-only token is enough for monitoring; PoE and port control need a token with write access.
 
@@ -47,7 +47,7 @@ Service **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 
 ## Development
 
 ```bash
-uv venv --python 3.13 .venv
+uv venv --python 3.14 .venv
 uv pip install --python .venv/bin/python pytest-homeassistant-custom-component
 .venv/bin/python -m pytest
 ```
