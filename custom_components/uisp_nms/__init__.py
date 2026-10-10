@@ -53,6 +53,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
         Runs inside Home Assistant, so the port is powered again even if the
         caller (e.g. a dashboard) disconnects meanwhile.
+
+        Adapted from the cycle_port service of marosmars/edgeswitch-homeassistant
+        (MIT); see THIRD_PARTY_NOTICES.md.
         """
         entity_id = call.data["entity_id"]
         entry = er.async_get(hass).async_get(entity_id)

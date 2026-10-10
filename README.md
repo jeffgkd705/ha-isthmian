@@ -54,6 +54,10 @@ uv pip install --python .venv/bin/python pytest-homeassistant-custom-component
 
 Tests run against an in-memory fake of the UISP API (`tests/conftest.py`).
 
+## Acknowledgements
+
+This integration started from [marosmars/edgeswitch-homeassistant](https://github.com/marosmars/edgeswitch-homeassistant) by Maros Marsalek, which controls EdgeSwitches through their own web API. Its structure was the model for this one, and the `power_cycle_port` action is adapted from its `cycle_port` service. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for its license.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
