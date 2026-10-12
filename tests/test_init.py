@@ -191,6 +191,27 @@ async def test_rejected_write(hass: HomeAssistant, config_entry, fake_uisp: Fake
     assert hass.states.get(AP_POE).state == "on"
 
 
+async def test_router_port_enable_uses_block(
+    hass: HomeAssistant, config_entry, fake_uisp: FakeUisp, entity_registry: er.EntityRegistry
+) -> None:
+    """EdgeRouter ports are enabled with block/unblock, as the UISP web UI does."""
+    entity_id = "switch.gw_eth0_enabled"
+    await _setup(hass, config_entry)
+    entity_registry.async_update_entity(entity_id, disabled_by=None)
+    assert await hass.config_entries.async_reload(config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "on"
+
+    await hass.services.async_call("switch", "turn_off", {"entity_id": entity_id}, blocking=True)
+    assert hass.states.get(entity_id).state == "off"
+    await hass.services.async_call("switch", "turn_on", {"entity_id": entity_id}, blocking=True)
+    assert hass.states.get(entity_id).state == "on"
+
+    prefix = f"/nms/api/v2.1/devices/{ROUTER}/interfaces/eth0"
+    assert fake_uisp.blocks == [f"{prefix}/block?isComposeRequest=true", f"{prefix}/unblock"]
+    assert fake_uisp.puts == []
+
+
 async def test_auth_failure_starts_reauth(hass: HomeAssistant, config_entry) -> None:
     """A rejected token at setup asks the user for a new one."""
     with patch(

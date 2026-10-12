@@ -177,6 +177,18 @@ class UispClient:
 
         await self.update_interface(device_id, interface_name, change)
 
+    async def set_interface_blocked(self, device_id: str, interface_name: str, blocked: bool) -> None:
+        """Block (disable) or unblock an interface on an EdgeRouter.
+
+        UISP rejects enabled changes made by writing an EdgeOS interface back;
+        the UISP web UI POSTs to block/unblock instead.
+        """
+        action = "block?isComposeRequest=true" if blocked else "unblock"
+        lock = self._write_locks.setdefault(device_id, asyncio.Lock())
+        async with lock:
+            _LOGGER.debug("%s %s on %s", action.split("?")[0], interface_name, device_id)
+            await self._request("POST", f"{API_DEVICES}/{device_id}/interfaces/{interface_name}/{action}")
+
     async def set_interface_enabled(self, device_id: str, interface_name: str, enabled: bool) -> None:
         """Enable or disable an interface."""
 

@@ -10,7 +10,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN, POE_OFF
+from .const import DEVICE_TYPE_ROUTER, DOMAIN, POE_OFF
 from .coordinator import UispConfigEntry, UispCoordinator
 from .entity import UispPortEntity, is_port
 
@@ -135,12 +135,12 @@ class UispPortEnabledSwitch(UispPortEntity, SwitchEntity):
         def change(iface: dict[str, Any]) -> None:
             iface["enabled"] = enabled
 
-        await self.coordinator.async_write(
-            self._device_id,
-            self._interface,
-            self.coordinator.client.set_interface_enabled(self._device_id, self._interface, enabled),
-            change,
-        )
+        client = self.coordinator.client
+        if self.device_data.device.get("identification", {}).get("type") == DEVICE_TYPE_ROUTER:
+            write = client.set_interface_blocked(self._device_id, self._interface, not enabled)
+        else:
+            write = client.set_interface_enabled(self._device_id, self._interface, enabled)
+        await self.coordinator.async_write(self._device_id, self._interface, write, change)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Enable the port."""

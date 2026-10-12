@@ -97,6 +97,7 @@ class FakeUisp:
         self.devices = make_devices()
         self.interfaces = make_interfaces()
         self.puts: list[tuple[str, str, dict[str, Any]]] = []
+        self.blocks: list[str] = []
 
     async def get_devices(self) -> list[dict[str, Any]]:
         return copy.deepcopy(self.devices)
@@ -111,6 +112,12 @@ class FakeUisp:
             for i in self.interfaces[device_id]
         ]
 
+    async def block(self, device_id: str, name: str, blocked: bool, path: str) -> None:
+        self.blocks.append(path)
+        for i in self.interfaces[device_id]:
+            if i["identification"]["name"] == name:
+                i["enabled"] = not blocked
+
 
 @pytest.fixture
 def fake_uisp() -> Generator[FakeUisp]:
@@ -123,6 +130,10 @@ def fake_uisp() -> Generator[FakeUisp]:
             return await fake.get_devices()
         if method == "GET" and parts[-1] == "interfaces":
             return await fake.get_interfaces(parts[-2])
+        if method == "POST" and parts[-1] in ("block", "unblock"):
+            assert payload is None
+            await fake.block(parts[-4], parts[-2], parts[-1] == "block", path)
+            return {"result": True}
         if method == "PUT":
             await fake.put(parts[-3], parts[-1], payload)
             return payload
