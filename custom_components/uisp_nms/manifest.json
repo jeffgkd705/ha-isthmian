@@ -1,6 +1,10 @@
 {
   "domain": "uisp_nms",
   "name": "UISP NMS",
+  "after_dependencies": [
+    "frontend",
+    "http"
+  ],
   "codeowners": [
     "@jeffgkd705"
   ],
@@ -13,5 +17,5 @@
     "custom_components.uisp_nms"
   ],
   "requirements": [],
-  "version": "0.1.3"
+  "version": "0.2.0"
 }

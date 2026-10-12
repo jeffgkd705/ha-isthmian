@@ -78,9 +78,12 @@ class UispLinkSensor(UispPortEntity, BinarySensorEntity):
         """Negotiated speed and port settings."""
         status = self.iface.get("status") or {}
         poe = self.iface.get("poe") or {}
+        stp = ((self.iface.get("port") or {}).get("stp") or {})
         return {
             **super().extra_state_attributes,
             "speed": status.get("currentSpeed"),
             "enabled": self.iface.get("enabled"),
             "poe_output": poe.get("output"),
+            "poe_power": (self.iface.get("statistics") or {}).get("poePower"),
+            "stp_state": stp.get("state") if stp.get("enabled") else None,
         }

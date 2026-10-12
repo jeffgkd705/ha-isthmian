@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+from pathlib import Path
 
 import voluptuous as vol
 
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.const import CONF_API_TOKEN, CONF_URL, Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
@@ -13,7 +16,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .api import UispClient
-from .const import CONF_FINGERPRINT, DOMAIN, SERVICE_POWER_CYCLE_PORT
+from .const import CARD_URL, CONF_FINGERPRINT, DOMAIN, SERVICE_POWER_CYCLE_PORT
 from .coordinator import UispConfigEntry, UispCoordinator
 
 PLATFORMS: list[Platform] = [
@@ -24,6 +27,8 @@ PLATFORMS: list[Platform] = [
 ]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+CARD_PATH = Path(__file__).parent / "frontend" / "uisp-nms-card.js"
 
 POWER_CYCLE_SCHEMA = vol.Schema(
     {
@@ -45,8 +50,26 @@ def create_client(hass: HomeAssistant, data: dict) -> UispClient:
     )
 
 
+async def _async_register_card(hass: HomeAssistant) -> None:
+    """Serve the bundled dashboard card and load it on every dashboard.
+
+    The file is served with long cache headers, so the URL carries a hash of
+    its contents. Adapted from marosmars/edgeswitch-homeassistant (MIT).
+    """
+    if hass.http is None or "frontend" not in hass.config.components:
+        return
+    from homeassistant.components.frontend import add_extra_js_url  # noqa: PLC0415
+
+    digest = await hass.async_add_executor_job(
+        lambda: hashlib.sha256(CARD_PATH.read_bytes()).hexdigest()[:10]
+    )
+    await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL, str(CARD_PATH), True)])
+    add_extra_js_url(hass, f"{CARD_URL}?v={digest}")
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register the power_cycle_port service."""
+    """Serve the dashboard card and register the power_cycle_port service."""
+    await _async_register_card(hass)
 
     async def async_power_cycle_port(call: ServiceCall) -> None:
         """Turn a PoE switch off, wait, and turn it back on with the same output.

@@ -2,7 +2,7 @@
 
 ## marosmars/edgeswitch-homeassistant
 
-The `power_cycle_port` action in `custom_components/uisp_nms/__init__.py` is adapted from the `cycle_port` service of [edgeswitch-homeassistant](https://github.com/marosmars/edgeswitch-homeassistant) by Maros Marsalek ([@marosmars](https://github.com/marosmars)). Its license, reproduced unchanged:
+The dashboard card (`custom_components/uisp_nms/frontend/uisp-nms-card.js`) is adapted from its `edgeswitch-card`, and the code that serves the card and the `power_cycle_port` action in `custom_components/uisp_nms/__init__.py` from its `cycle_port` service, of [edgeswitch-homeassistant](https://github.com/marosmars/edgeswitch-homeassistant) by Maros Marsalek ([@marosmars](https://github.com/marosmars)). Its license, reproduced unchanged:
 
 ```
 MIT License

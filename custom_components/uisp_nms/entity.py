@@ -89,5 +89,10 @@ class UispPortEntity(UispDeviceEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Port description, so users can tell ports apart."""
-        return {"description": self.iface.get("identification", {}).get("description")}
+        """Port description, so users can tell ports apart, and its UISP name and position."""
+        ident = self.iface.get("identification", {})
+        return {
+            "description": ident.get("description"),
+            "interface": self._interface,
+            "position": ident.get("position"),
+        }

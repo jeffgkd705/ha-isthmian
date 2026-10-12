@@ -13,7 +13,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.uisp_nms.api import UispAuthError
-from custom_components.uisp_nms.const import DOMAIN, SERVICE_POWER_CYCLE_PORT
+from custom_components.uisp_nms.const import CARD_URL, DOMAIN, SERVICE_POWER_CYCLE_PORT
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
@@ -252,3 +252,16 @@ async def test_brand_icon_served(hass: HomeAssistant, hass_client) -> None:
         response = await client.get(f"/api/brands/integration/{DOMAIN}/{image}")
         assert response.status == 200, image
         assert await response.read() == (brand / source).read_bytes(), image
+
+
+async def test_card_served(hass: HomeAssistant, hass_client) -> None:
+    """The dashboard card is served and loaded on every dashboard."""
+    assert await async_setup_component(hass, "http", {})
+    hass.config.components.add("frontend")
+    with patch("homeassistant.components.frontend.add_extra_js_url") as add_js:
+        assert await async_setup_component(hass, DOMAIN, {})
+    (url,) = add_js.call_args.args[1:]
+    assert url.startswith(f"{CARD_URL}?v=")
+    response = await (await hass_client()).get(url)
+    assert response.status == 200
+    assert "customElements.define('uisp-nms-card'" in await response.text()

@@ -11,11 +11,13 @@ Per device:
 - **CPU usage**, **Memory usage**, **Last boot**, and **Temperature** where the device reports one
 
 Per physical port (switch ports, router `ethN`; not VLANs or LAGs):
-- **Link** (binary sensor) with negotiated speed, port description and PoE output as attributes
+- **Link** (binary sensor) with negotiated speed, port description, PoE output, PoE power and STP state as attributes
 - **RX rate** / **TX rate** (Mbit/s), with error and drop counters as attributes
 - **PoE** switch on ports that can supply power
 - **PoE output** select on ports offering more than one output (e.g. ES-8-150W: off / active 48V / 24V passive)
 - **Enabled** switch to turn the port on or off — *disabled by default*, see below
+
+A **dashboard card** showing a device's front panel, with PoE control (see [Dashboard card](#dashboard-card)).
 
 Service **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 5 s) and turns it back on with the same output — handy for a stuck access point or camera.
 
@@ -38,6 +40,26 @@ Service **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 
 3. **Settings → Devices & services → Add integration → UISP NMS**. Enter the UISP URL (e.g. `https://uisp.example.com`) and the API token.
 4. If UISP uses its default self-signed certificate, you are shown its SHA-256 fingerprint. Check it matches your server (for example in the browser's certificate viewer) and submit to trust exactly that certificate. If the certificate is ever replaced, the integration stops connecting until you confirm the new one with **Reconfigure**.
 
+## Dashboard card
+
+The integration ships a card that draws a device's front panel: link and PoE LEDs, speed, current rates, PoE output, and CPU, RAM and temperature in the header. It is loaded on every dashboard automatically, so no resource needs to be added. Add it with **Edit dashboard → Add card → UISP NMS switch** and pick the device, or in YAML:
+
+```yaml
+type: custom:uisp-nms-card
+device: Family Room - Switch 2   # device name or id
+protect: [1]                     # ports that can't be disabled from the card (uplinks)
+```
+
+Tap a port to see its details and controls: PoE on/off, restart PoE, and the PoE output where the port offers more than one. Port enable/disable only appears if you have enabled that port's "enabled" entity. Turning power or a port off, restarting PoE and changing the PoE voltage all need a second tap.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `device` | first UISP NMS device | Device name or id |
+| `protect` | `[]` | Ports (numbers, or names like `eth1`) without a disable button. Protect the ports that connect Home Assistant to the device: once disabled, it could not re-enable them |
+| `sfp` | from the model | SFP port numbers |
+| `cycle_seconds` | `5` | Off time for "Restart PoE" |
+| `accent` | teal | Header color |
+
 ## Notes
 
 - UISP is polled every 30 seconds: one request for the device list plus one per connected device. After a change, the port is re-read 5 seconds later, because UISP answers before the device has applied it. A change takes about 3 seconds to go through UISP.
@@ -57,7 +79,7 @@ Tests run against an in-memory fake of the UISP API (`tests/conftest.py`).
 
 ## Acknowledgements
 
-This integration started from [marosmars/edgeswitch-homeassistant](https://github.com/marosmars/edgeswitch-homeassistant) by Maros Marsalek, which controls EdgeSwitches through their own web API. Its structure was the model for this one, and the `power_cycle_port` action is adapted from its `cycle_port` service. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for its license.
+This integration started from [marosmars/edgeswitch-homeassistant](https://github.com/marosmars/edgeswitch-homeassistant) by Maros Marsalek, which controls EdgeSwitches through their own web API. Its structure was the model for this one; the dashboard card is adapted from its `edgeswitch-card`, and the `power_cycle_port` action from its `cycle_port` service. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for its license.
 
 ## License
 

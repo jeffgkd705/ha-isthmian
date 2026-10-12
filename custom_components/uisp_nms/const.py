@@ -29,3 +29,6 @@ SERVICE_POWER_CYCLE_PORT: Final = "power_cycle_port"
 
 # identification.type of EdgeRouters, whose ports are enabled with block/unblock.
 DEVICE_TYPE_ROUTER = "erouter"
+
+# URL of the bundled dashboard card.
+CARD_URL = "/uisp_nms/uisp-nms-card.js"
