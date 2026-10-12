@@ -11,7 +11,7 @@ Per device:
 - **CPU usage**, **Memory usage**, **Last boot**, and **Temperature** where the device reports one
 
 Per physical port (switch ports, router `ethN`; not VLANs or LAGs):
-- **Link** (binary sensor) with negotiated speed, port description, PoE output, PoE power and STP state as attributes
+- **Link** (binary sensor) with negotiated speed, port description, PoE output, PoE power, STP state and VLANs (untagged and tagged, with names where known) as attributes
 - **RX rate** / **TX rate** (Mbit/s), with error and drop counters as attributes
 - **PoE** switch on ports that can supply power
 - **PoE output** select on ports offering more than one output (e.g. ES-8-150W: off / active 48V / 24V passive)
@@ -42,7 +42,7 @@ Service **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 
 
 ## Dashboard card
 
-The integration ships a card that draws a device's front panel, with link and PoE lights, speed, current rates and PoE output for each port, and CPU, RAM, temperature, links and PoE in the header. You can turn PoE on and off, restart it and change its output from the card.
+The integration ships a card that draws a device's front panel, with link and PoE lights, speed, current rates, PoE output and VLANs for each port, and CPU, RAM, temperature, links and PoE in the header. You can turn PoE on and off, restart it and change its output from the card.
 
 ![UISP NMS card for an EdgeSwitch 8 150W, with port 3 selected](docs/images/card-wide.png)
 
@@ -68,6 +68,7 @@ If the card picker does not list **UISP NMS switch**, or the dashboard shows *Cu
 ### Use the card
 
 - **Read the panel.** Each port shows its UISP description, current download (↓) and upload (↑) as seen by the connected device, and two lights: green for a link at 1 Gbit/s or more, amber for a slower link (the speed is printed in the jack), red for a disabled port. The second light is amber when the port supplies PoE, and the jack shows the output (24V, 48V) or the power drawn. Hover over a port for its error and drop counters.
+- **VLANs.** A port's untagged VLAN colors its outline, and each tagged VLAN adds a dot in the jack; the legend lists the device's VLANs. VLAN 1 (the default) is not colored. A VLAN has the same color on every card. Names come from the descriptions of VLAN interfaces in UISP (for example `eth1.10` "Home" on the router); VLANs without one are shown by number.
 - **Tap a port** for its details and controls. Tap it again, the ✕, or press **Esc** to close them.
 - **PoE**: **Off**/**On** and **Restart** (off for 5 seconds, then back on with the same output, via the `uisp_nms.power_cycle_port` action).
 - **Output**: on ports that offer more than one PoE output (ES-8-150W: 48V 802.3af/at and 24V passive), the current one is ticked. **Check what the powered device accepts before changing it**: 48V on a 24V-passive device can damage it.
@@ -75,6 +76,8 @@ If the card picker does not list **UISP NMS switch**, or the dashboard shows *Cu
 - **Confirm**: turning PoE or a port off, restarting PoE and changing the output need a second tap. The button turns red and says **Sure?** for 4 seconds.
 
 ![Second tap to confirm turning PoE off](docs/images/card-confirm.png)
+
+![VLANs: untagged as the port outline, tagged as dots, with the legend](docs/images/card-vlans.png)
 
 On narrow screens the ports wrap and the details move below them. Routers are drawn on one row, with the SFP port separate.
 
@@ -89,11 +92,13 @@ On narrow screens the ports wrap and the details move below them. Routers are dr
 | `sfp` | from the model | SFP port numbers, drawn as cages |
 | `cycle_seconds` | `5` | Off time for **Restart** |
 | `accent` | teal | Header color, e.g. `'#5c6bc0'` |
+| `vlan_colors` | built-in palette | Colors by VLAN id, e.g. `{50: '#ef6c00'}` |
 
 ## Notes
 
 - UISP is polled every 30 seconds: one request for the device list plus one per connected device. After a change, the port is re-read 5 seconds later, because UISP answers before the device has applied it. A change takes about 3 seconds to go through UISP.
 - Data rates come from UISP's `rxrate`/`txrate` (bits per second).
+- Switch VLAN membership comes from UISP's device detail, which is larger, so it is read when the integration starts and then every 10 minutes rather than every 30 seconds. VLAN changes can take up to 10 minutes to show.
 - The integration's icon ships in `custom_components/uisp_nms/brand/` and is shown by Home Assistant 2026.3 or later; older versions show a placeholder. It is an original design, not Ubiquiti's logo.
 - Avoid opening UISP's API documentation page (`/nms/api-docs`) on small servers: generating it took over 100 seconds of CPU on UISP 3.1.65, made UISP restart its API and disconnected all devices.
 

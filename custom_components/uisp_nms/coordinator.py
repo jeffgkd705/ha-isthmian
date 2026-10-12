@@ -6,6 +6,7 @@ from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import logging
+import time
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -18,13 +19,50 @@ from .api import UispAuthError, UispCertificateError, UispClient, UispError
 from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEVICE_STATUS_ACTIVE,
+    DEVICE_TYPE_SWITCH,
     DOMAIN,
     MAX_PARALLEL_REQUESTS,
     POE_OFF,
     REFRESH_AFTER_WRITE,
+    VLAN_REFRESH_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class UispVlans:
+    """VLAN membership of a device's ports, keyed by interface name."""
+
+    native: dict[str, int] = field(default_factory=dict)
+    tagged: dict[str, list[int]] = field(default_factory=dict)
+
+    @classmethod
+    def from_switch_detail(cls, detail: dict[str, Any]) -> UispVlans:
+        """Parse eswitch.vlans of a switch's device detail."""
+        vlans = (detail.get("eswitch") or {}).get("vlans") or {}
+        native = {
+            name: cfg["vlanNative"]
+            for name, cfg in (vlans.get("interface") or {}).items()
+            if isinstance(cfg, dict) and isinstance(cfg.get("vlanNative"), int)
+        }
+        tagged: dict[str, list[int]] = {}
+        for vlan_id, cfg in (vlans.get("vlanId") or {}).items():
+            if not str(vlan_id).isdigit():
+                continue
+            for name in (cfg or {}).get("interfaces") or []:
+                tagged.setdefault(name, []).append(int(vlan_id))
+        return cls(native, {name: sorted(ids) for name, ids in tagged.items()})
+
+    @classmethod
+    def from_router_interfaces(cls, interfaces: dict[str, dict[str, Any]]) -> UispVlans:
+        """Tagged VLANs of a router port are its VLAN sub-interfaces (eth1.10)."""
+        tagged: dict[str, list[int]] = {}
+        for iface in interfaces.values():
+            vlan = iface.get("vlan") or {}
+            if isinstance(vlan.get("id"), int) and vlan.get("parent"):
+                tagged.setdefault(vlan["parent"], []).append(vlan["id"])
+        return cls({}, {name: sorted(ids) for name, ids in tagged.items()})
 
 
 @dataclass
@@ -33,6 +71,7 @@ class UispDeviceData:
 
     device: dict[str, Any]
     interfaces: dict[str, dict[str, Any]] = field(default_factory=dict)
+    vlans: UispVlans = field(default_factory=UispVlans)
 
     @property
     def connected(self) -> bool:
@@ -61,6 +100,10 @@ class UispCoordinator(DataUpdateCoordinator[dict[str, UispDeviceData]]):
         # Last PoE output other than "off" seen per (device_id, interface),
         # so turning PoE back on restores the same voltage/mode.
         self.last_poe_output: dict[tuple[str, str], str] = {}
+        # VLAN names by id, from the descriptions of VLAN interfaces (e.g. on the router).
+        self.vlan_names: dict[int, str] = {}
+        # Switch VLAN membership and when it was read (time.monotonic()).
+        self._switch_vlans: dict[str, tuple[float, UispVlans]] = {}
         self._cancel_refresh: CALLBACK_TYPE | None = None
 
     async def async_write(
@@ -149,7 +192,39 @@ class UispCoordinator(DataUpdateCoordinator[dict[str, UispDeviceData]]):
             for name, iface in data.interfaces.items():
                 self._remember_poe_output(device_id, name, iface)
 
+        await self._async_update_vlans(result)
         return result
+
+    async def _async_update_vlans(self, result: dict[str, UispDeviceData]) -> None:
+        """Attach VLAN membership and collect VLAN names.
+
+        Switch membership comes from the device detail, re-read at most every
+        VLAN_REFRESH_INTERVAL seconds. VLANs are informational, so a failure
+        keeps the previous membership instead of failing the update.
+        """
+        names: dict[int, str] = {}
+        now = time.monotonic()
+        for device_id, data in result.items():
+            for iface in data.interfaces.values():
+                vlan = iface.get("vlan") or {}
+                description = iface.get("identification", {}).get("description")
+                if isinstance(vlan.get("id"), int) and description:
+                    names.setdefault(vlan["id"], description)
+            if data.device.get("identification", {}).get("type") != DEVICE_TYPE_SWITCH:
+                data.vlans = UispVlans.from_router_interfaces(data.interfaces)
+                continue
+            fetched, vlans = self._switch_vlans.get(device_id, (None, None))
+            if data.connected and (fetched is None or now - fetched >= VLAN_REFRESH_INTERVAL):
+                try:
+                    detail = await self.client.get_device_detail(device_id)
+                except UispError as err:
+                    _LOGGER.debug("Could not read VLANs of %s: %s", device_id, err)
+                else:
+                    vlans = UispVlans.from_switch_detail(detail)
+                    self._switch_vlans[device_id] = (now, vlans)
+            if vlans is not None:
+                data.vlans = vlans
+        self.vlan_names = names
 
     def _remember_poe_output(self, device_id: str, interface: str, iface: dict[str, Any]) -> None:
         output = (iface.get("poe") or {}).get("output")

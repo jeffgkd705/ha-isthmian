@@ -8,6 +8,7 @@
 //   sfp: [9, 10]                  SFP ports (drawn as cages); default from the model
 //   cycle_seconds: 5              off time for "Restart PoE" (service uisp_nms.power_cycle_port)
 //   accent: '#26a69a'             header color
+//   vlan_colors: {50: '#ef6c00'}  per-VLAN colors (default: a built-in palette; VLAN 1 stays uncolored)
 // Tap a port for details and controls. Every action that cuts power or link, or changes the PoE voltage,
 // needs a second tap within 4 s. Port enable/disable only appears when its "enabled" entity has been enabled.
 const DOMAIN = 'uisp_nms';
@@ -19,7 +20,9 @@ const T = {
   offline: 'Disconnected from UISP', unavailable: 'No port data: the device is not connected to UISP.',
   pick: 'Tap a port for details and controls.', lgLink: 'link 1G+', lgSlow: 'link < 1G', lgDis: 'port disabled', lgPoe: 'PoE on',
   voltageWarn: 'Check the powered device supports this voltage', up: 'up',
+  vlans: 'VLANs', lgUntag: 'untagged (port outline)', lgTag: 'tagged (dot)', untagged: 'untagged', tagged: 'tagged',
 };
+const VLAN_PALETTE = ['#42a5f5', '#ab47bc', '#26a69a', '#ef6c00', '#ec407a', '#7cb342', '#8d6e63', '#5c6bc0'];
 // UISP PoE output names; '24v' is passive 24 V, 'active' is 802.3af/at (48 V).
 const POE_LABEL = { '24v': '24V passive', active: '48V 802.3af/at', '54v': '54V passive', off: 'off' };
 const POE_SHORT = { '24v': '24V', active: '48V', '54v': '54V' };
@@ -209,13 +212,51 @@ class UispNmsCard extends HTMLElement {
         poeOutput: a.poe_output,
         poeOptions: (outSt?.attributes.options || []).filter((o) => o !== 'off'),
         watts: a.poe_power || 0,
+        nativeId: a.native_vlan ?? null,
+        nativeName: a.native_vlan_name || '',
+        tagged: a.tagged_vlans || [],
         ctr: this._st(rx[k])?.attributes || {},
         // rx = received by the switch = the device's upload; tx = the device's download
         upBps: this._bps(rx[k]),
         downBps: this._bps(tx[k]),
       });
     }
-    return ports.sort((a, b) => a.n - b.n || a.k.localeCompare(b.k));
+    ports.sort((a, b) => a.n - b.n || a.k.localeCompare(b.k));
+    this._collectVlans(ports);
+    return ports;
+  }
+
+  // Every VLAN id on any UISP NMS port, sorted: colors are assigned in this order,
+  // so a VLAN has the same color on every card.
+  _allVlanIds() {
+    const ids = new Set();
+    for (const e of Object.values(this._hass.entities || {})) {
+      if (e.platform !== DOMAIN || e.translation_key !== 'link') continue;
+      const a = this._st(e.entity_id)?.attributes;
+      if (!a) continue;
+      if (a.native_vlan != null) ids.add(a.native_vlan);
+      for (const v of a.tagged_vlans || []) ids.add(v.id);
+    }
+    ids.delete(1);
+    return [...ids].sort((a, b) => a - b);
+  }
+
+  // VLANs used on this device's ports (VLAN 1, the default, is left out), each with a color.
+  _collectVlans(ports) {
+    const seen = new Map();
+    for (const x of ports) {
+      if (x.nativeId !== null && x.nativeId !== 1 && !seen.has(x.nativeId)) seen.set(x.nativeId, x.nativeName);
+      for (const v of x.tagged) if (v.id !== 1 && (!seen.has(v.id) || !seen.get(v.id))) seen.set(v.id, v.name || seen.get(v.id) || '');
+    }
+    const colors = this._config.vlan_colors || {};
+    const all = this._allVlanIds();
+    this._vlans = [...seen].sort((a, b) => a[0] - b[0])
+      .map(([id, name]) => ({ id, name, color: colors[id] || VLAN_PALETTE[Math.max(0, all.indexOf(id)) % VLAN_PALETTE.length] }));
+    this._vlanColor = Object.fromEntries(this._vlans.map((v) => [v.id, v.color]));
+  }
+
+  _vlanLabel(id, name) {
+    return name ? `${id} ${name}` : `VLAN ${id}`;
   }
 
   // Re-render, dropping busy markers whose target state arrived or whose time ran out.
@@ -331,6 +372,8 @@ class UispNmsCard extends HTMLElement {
     lines.push(x.up ? `${x.rawSpeed} · ↓${this._fmtRate(x.downBps, true)} ↑${this._fmtRate(x.upBps, true)}` : T.noLink);
     if (c.dropped != null) lines.push(`drops ${c.dropped} · errors ${c.errors ?? 0}`);
     if (x.poe !== null) lines.push(`PoE ${x.poe === 'on' ? POE_LABEL[x.poeOutput] || x.poeOutput : 'off'}`);
+    if (x.nativeId !== null) lines.push(`${T.untagged}: ${this._vlanLabel(x.nativeId, x.nativeName)}`);
+    if (x.tagged.length) lines.push(`${T.tagged}: ${x.tagged.map((v) => v.id).join(', ')}`);
     return esc(lines.join('\n'));
   }
 
@@ -342,6 +385,8 @@ class UispNmsCard extends HTMLElement {
       x.enabled ? '' : 'dis', x.poe === 'on' ? 'pw' : '',
       this._sel === x.k ? 'sel' : '', busy ? 'busy' : '',
     ].filter(Boolean).join(' ');
+    const dots = x.tagged.filter((v) => this._vlanColor[v.id]).map((v) => `<i class="vd" style="background:${this._vlanColor[v.id]}"></i>`).join('');
+    const nativeColor = this._vlanColor[x.nativeId];
     const rates = x.up && x.downBps !== null
       ? `<span class="dn-r${x.downBps ? '' : ' zero'}">↓${this._fmtRate(x.downBps)}</span><span class="up-r${x.upBps ? '' : ' zero'}">↑${this._fmtRate(x.upBps)}</span>` : '';
     const label = `
@@ -354,10 +399,10 @@ class UispNmsCard extends HTMLElement {
     const jack = `
       <div class="jackrow">
         <span class="no">${esc(x.label)}</span>
-        <div class="jack">${poeTag ? `<span class="w">${esc(poeTag)}</span>` : ''}${x.slow ? `<span class="jspd">${esc(x.speed)}</span>` : ''}${busy ? '<ha-icon icon="mdi:loading" class="spin"></ha-icon>' : ''}</div>
+        <div class="jack">${dots ? `<span class="dots">${dots}</span>` : ''}${poeTag ? `<span class="w">${esc(poeTag)}</span>` : ''}${x.slow ? `<span class="jspd">${esc(x.speed)}</span>` : ''}${busy ? '<ha-icon icon="mdi:loading" class="spin"></ha-icon>' : ''}</div>
         <span class="leds"><i class="l1"></i><i class="l2"></i></span>
       </div>`;
-    return `<div class="${cls}" style="--o:${x.n}" data-port="${esc(x.k)}" title="${this._tip(x)}">${bottom ? jack + label : label + jack}</div>`;
+    return `<div class="${cls}${nativeColor ? ' nv' : ''}" style="--o:${x.n};${nativeColor ? `--vc:${nativeColor}` : ''}" data-port="${esc(x.k)}" title="${this._tip(x)}">${bottom ? jack + label : label + jack}</div>`;
   }
 
   _chassis(ports) {
@@ -393,7 +438,12 @@ class UispNmsCard extends HTMLElement {
         <div class="legend">
           <span><i class="lg g"></i>${T.lgLink}</span><span><i class="lg a"></i>${T.lgSlow}</span>
           <span><i class="lg r"></i>${T.lgDis}</span><span><i class="lg a2"></i>${T.lgPoe}</span>
-        </div>`;
+        </div>
+        ${this._vlans.length ? `
+        <div class="vlegend">
+          <div class="vlh">${T.vlans}<span>${T.lgUntag} · ${T.lgTag}</span></div>
+          ${this._vlans.map((v) => `<span title="VLAN ${v.id}"><i class="vsw" style="--vc:${v.color}"></i>${esc(this._vlanLabel(v.id, v.name))}</span>`).join('')}
+        </div>` : ''}`;
     }
     const prot = (this._config.protect || []).map(String).includes(String(x.n)) || (this._config.protect || []).includes(x.k);
     const secs = `${this._config.cycle_seconds}s`;
@@ -417,12 +467,18 @@ class UispNmsCard extends HTMLElement {
           : this._btn(`port_on:${x.k}`, 'mdi:lan-connect', T.on, { kind: 'good' })}
       </div>` : '';
     const c = x.ctr;
+    const vdot = (id) => `<i class="vd" style="background:${this._vlanColor[id] || 'var(--fp-dim)'}"></i>`;
+    const vlans = [
+      ...(x.nativeId !== null ? [`${vdot(x.nativeId)}<b>${esc(this._vlanLabel(x.nativeId, x.nativeName))}</b>`] : []),
+      ...x.tagged.map((v) => `${vdot(v.id)}<span title="${esc(this._vlanLabel(v.id, v.name))}">${v.id}</span>`),
+    ].join(' ');
     return `
       <div class="pinfo">
       <div class="ptitle"><span class="dn">${esc(x.label)}</span><span class="pname">${esc(x.name) || `<i>${T.noName}</i>`}</span>${prot ? `<ha-icon class="shield" icon="mdi:shield-lock" title="${T.protected}"></ha-icon>` : ''}
         <button class="x" data-close="1" title="Esc"><ha-icon icon="mdi:close"></ha-icon></button></div>
       <div class="pmeta prate">${x.enabled ? (x.up ? esc(x.rawSpeed) : T.noLink) : `<b class="bad">${T.portOff}</b>`}${x.stp ? ` · STP ${esc(x.stp)}` : ''}${x.up ? `<span class="dn-r">↓${this._fmtRate(x.downBps, true)}</span><span class="up-r">↑${this._fmtRate(x.upBps, true)}</span>` : ''}</div>
       ${c.dropped != null ? `<div class="pmeta${(c.dropped || c.errors) ? ' bad' : ''}">drops ${esc(c.dropped)} · errors ${esc(c.errors ?? 0)}</div>` : ''}
+      ${vlans ? `<div class="pmeta one pvl" title="${T.untagged} · ${T.tagged}">${vlans}</div>` : ''}
       </div>
       <div class="pacts">${poe}${outputs}${port}</div>`;
   }
@@ -493,6 +549,22 @@ class UispNmsCard extends HTMLElement {
                  font-size: 13px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .rates .zero { opacity: .45; }
         .jspd { position: absolute; right: 3px; top: 1px; font-size: 9px; font-weight: 700; color: var(--slow); }
+        .dots { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); display: grid; grid-auto-flow: column; grid-template-rows: repeat(3, 6px); gap: 2px; }
+        .dots .vd { width: 6px; height: 6px; }
+        .jack:has(.dots) .w { margin-left: 14px; }
+        .sfp .dots { grid-template-rows: repeat(2, 5px); gap: 1px 2px; left: 2px; }
+        .sfp .dots .vd { width: 5px; height: 5px; }
+        .vd { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+        .nv .jack, .nv .jack::before { border-color: var(--vc) !important; }
+        .nv .jack { box-shadow: inset 0 2px 4px rgba(0,0,0,.8), 0 0 0 1px var(--vc); }
+        .vlegend { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 6px; font-size: 11px; }
+        .vlh { width: 100%; display: flex; justify-content: space-between; gap: 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fp-dim); }
+        .vlh span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+        .vlegend > span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+        .vsw { width: 10px; height: 10px; border-radius: 2px; background: var(--vc); flex: none; }
+        .pmeta.one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pvl { display: flex; align-items: center; gap: 4px; }
+        .pvl b { font-weight: 600; margin-right: 6px; }
         .gl small { display: block; font-size: 9.5px; letter-spacing: 0; color: var(--pw); text-transform: none; white-space: nowrap; }
         .cell:hover { background: var(--fp-hover); }
         .cell.sel { border-color: var(--primary-color); background: var(--fp-sel); }
@@ -564,6 +636,8 @@ class UispNmsCard extends HTMLElement {
         .stack .sidein:has(.pick) { flex-wrap: wrap; align-content: center; gap: 4px 20px; }
         .stack .sidein:has(.pick) .pick { display: none; }
         .stack .legend { display: flex; flex-wrap: wrap; gap: 3px 14px; margin-top: 0; }
+        .stack .vlegend { margin-top: 0; }
+        .stack .vlh { width: auto; }
         @container (max-width: 1180px) {
           .chassis { flex-direction: column; }
           .side { flex: 0 0 auto; min-height: 0; }
@@ -574,6 +648,8 @@ class UispNmsCard extends HTMLElement {
           .sidein:has(.pick) { flex-wrap: wrap; align-content: center; gap: 4px 20px; }
           .sidein:has(.pick) .pick { display: none; }
           .legend { display: flex; flex-wrap: wrap; gap: 3px 14px; margin-top: 0; }
+          .vlegend { margin-top: 0; }
+          .vlh { width: auto; }
         }
         /* small screens: never scroll sideways. Ports become a wrapping grid in port order (1, 2, 3 …),
            every port with its label above the jack; the detail panel grows instead of being fixed. */

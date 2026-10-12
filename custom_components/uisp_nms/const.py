@@ -32,3 +32,8 @@ DEVICE_TYPE_ROUTER = "erouter"
 
 # URL of the bundled dashboard card.
 CARD_URL = "/uisp_nms/uisp-nms-card.js"
+
+# VLAN membership is read from the device detail, which is large and rarely
+# changes, so less often than the regular poll (seconds).
+VLAN_REFRESH_INTERVAL = 600
+DEVICE_TYPE_SWITCH = "eswitch"

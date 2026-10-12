@@ -86,4 +86,19 @@ class UispLinkSensor(UispPortEntity, BinarySensorEntity):
             "poe_output": poe.get("output"),
             "poe_power": (self.iface.get("statistics") or {}).get("poePower"),
             "stp_state": stp.get("state") if stp.get("enabled") else None,
+            **self._vlan_attributes(),
+        }
+
+    def _vlan_attributes(self) -> dict[str, Any]:
+        """Untagged and tagged VLANs of the port, with names where known."""
+        vlans = self.device_data.vlans
+        names = self.coordinator.vlan_names
+        native = vlans.native.get(self._interface)
+        return {
+            "native_vlan": native,
+            "native_vlan_name": names.get(native) if native is not None else None,
+            "tagged_vlans": [
+                {"id": vlan_id, "name": names.get(vlan_id)}
+                for vlan_id in vlans.tagged.get(self._interface, [])
+            ],
         }

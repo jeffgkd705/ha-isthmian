@@ -85,8 +85,25 @@ def make_interfaces() -> dict[str, list[dict[str, Any]]]:
         ],
         ROUTER: [
             _port(0, type_="eth", name="eth0"),
-            {"identification": {"type": "vlan", "name": "eth1.10"}, "status": {}},
+            _port(1, type_="eth", name="eth1"),
+            {"identification": {"type": "vlan", "name": "eth1.10", "description": "General"},
+             "vlan": {"id": 10, "parent": "eth1"}, "status": {}},
         ],
+    }
+
+
+def make_details() -> dict[str, dict[str, Any]]:
+    """Device detail (only the VLAN part) of the switches."""
+    return {
+        SWITCH_10X: {
+            "eswitch": {
+                "vlans": {
+                    "vlanId": {"10": {"interfaces": ["port1", "port8"]}, "50": {"interfaces": ["port1"]}},
+                    "interface": {"port1": {"vlanNative": 1}, "port8": {"vlanNative": 1}},
+                }
+            }
+        },
+        SWITCH_8: {"eswitch": {"vlans": {"vlanId": {}, "interface": {"port3": {"vlanNative": 50}}}}},
     }
 
 
@@ -98,6 +115,8 @@ class FakeUisp:
         self.interfaces = make_interfaces()
         self.puts: list[tuple[str, str, dict[str, Any]]] = []
         self.blocks: list[str] = []
+        self.details = make_details()
+        self.detail_reads = 0
 
     async def get_devices(self) -> list[dict[str, Any]]:
         return copy.deepcopy(self.devices)
@@ -130,6 +149,9 @@ def fake_uisp() -> Generator[FakeUisp]:
             return await fake.get_devices()
         if method == "GET" and parts[-1] == "interfaces":
             return await fake.get_interfaces(parts[-2])
+        if method == "GET" and parts[-1] == "detail":
+            fake.detail_reads += 1
+            return copy.deepcopy(fake.details.get(parts[-2], {}))
         if method == "POST" and parts[-1] in ("block", "unblock"):
             assert payload is None
             await fake.block(parts[-4], parts[-2], parts[-1] == "block", path)
