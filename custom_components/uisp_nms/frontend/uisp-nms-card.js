@@ -532,9 +532,13 @@ class UispNmsCard extends HTMLElement {
         ${list.length ? `<div class="cl">${list.map((c) => {
           const name = c.hostname || c.vendor || c.mac;
           const vl = c.vlan != null ? this._vlanLabel(c.vlan, c.vlan_name) : '';
-          return `<div class="cr" title="${esc([c.hostname, c.vendor, c.mac, ...(c.ip_addresses || []), vl].filter(Boolean).join('\n'))}">
+          // IPv4 first; only the first address is shown, all of them in the tooltip.
+          const ips = c.ip_addresses || [];
+          const ordered = [...ips.filter((a) => !a.includes(':')), ...ips.filter((a) => a.includes(':'))];
+          const ip = ordered.length ? `${ordered[0]}${ordered.length > 1 ? ` +${ordered.length - 1}` : ''}` : '';
+          return `<div class="cr" title="${esc([c.hostname, c.vendor, c.mac, ...ordered, vl].filter(Boolean).join('\n'))}">
             <i class="vd" style="background:${this._vlanColor[c.vlan] || 'var(--fp-dim)'}"></i>
-            <b>${esc(name)}</b><span>${esc((c.ip_addresses || []).join(', '))}</span><span class="mac">${esc(c.mac)}</span><span>${esc(vl)}</span></div>`;
+            <b>${esc(name)}</b><span>${esc(ip)}</span><span class="mac">${esc(c.mac)}</span><span>${esc(vl)}</span></div>`;
         }).join('')}</div>` : `<div class="pmeta">${T.none}</div>`}`;
     }
     let cable = '';
@@ -685,7 +689,7 @@ class UispNmsCard extends HTMLElement {
         .pairs { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 4px; }
         .raw { margin: 4px 0 0; white-space: pre-wrap; word-break: break-all; font-size: 11px; }
         @container card (max-width: 600px) {
-          .cl { grid-template-columns: 10px minmax(0, 1fr) minmax(0, max-content); }
+          .cl { grid-template-columns: 10px minmax(0, 1fr) minmax(0, 1fr); }
           .cr .mac, .cr span:last-child { display: none; }
         }
 
