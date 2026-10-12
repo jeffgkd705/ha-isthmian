@@ -42,23 +42,53 @@ Service **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 
 
 ## Dashboard card
 
-The integration ships a card that draws a device's front panel: link and PoE LEDs, speed, current rates, PoE output, and CPU, RAM and temperature in the header. It is loaded on every dashboard automatically, so no resource needs to be added. Add it with **Edit dashboard → Add card → UISP NMS switch** and pick the device, or in YAML:
+The integration ships a card that draws a device's front panel, with link and PoE lights, speed, current rates and PoE output for each port, and CPU, RAM, temperature, links and PoE in the header. You can turn PoE on and off, restart it and change its output from the card.
+
+![UISP NMS card for an EdgeSwitch 8 150W, with port 3 selected](docs/images/card-wide.png)
+
+### Add the card
+
+The card is loaded on every dashboard automatically, so there is no resource to add.
+
+1. Open a dashboard, click the **pencil** (Edit dashboard) at the top right, then **+ Add card**.
+2. Search for **UISP NMS** and choose **UISP NMS switch**.
+3. Pick the **Device** (one card per switch or router) and click **Save**.
+4. Recommended: protect the uplink ports. In the card editor, click **Show code editor** and add `protect:` with the port numbers that connect the device to the rest of your network, e.g. `protect: [1]`. Those ports get no disable button.
+
+The same card in YAML:
 
 ```yaml
 type: custom:uisp-nms-card
-device: Family Room - Switch 2   # device name or id
-protect: [1]                     # ports that can't be disabled from the card (uplinks)
+device: Living Room Switch   # device name (as shown in Home Assistant) or device id
+protect: [1]                 # ports that can't be disabled from the card (uplinks)
 ```
 
-Tap a port to see its details and controls: PoE on/off, restart PoE, and the PoE output where the port offers more than one. Port enable/disable only appears if you have enabled that port's "enabled" entity. Turning power or a port off, restarting PoE and changing the PoE voltage all need a second tap.
+If the card picker does not list **UISP NMS switch**, or the dashboard shows *Custom element doesn't exist: uisp-nms-card*, restart Home Assistant after installing or updating, then reload the page with **Ctrl+F5** (**Cmd+Shift+R** on a Mac).
+
+### Use the card
+
+- **Read the panel.** Each port shows its UISP description, current download (↓) and upload (↑) as seen by the connected device, and two lights: green for a link at 1 Gbit/s or more, amber for a slower link (the speed is printed in the jack), red for a disabled port. The second light is amber when the port supplies PoE, and the jack shows the output (24V, 48V) or the power drawn. Hover over a port for its error and drop counters.
+- **Tap a port** for its details and controls. Tap it again, the ✕, or press **Esc** to close them.
+- **PoE**: **Off**/**On** and **Restart** (off for 5 seconds, then back on with the same output, via the `uisp_nms.power_cycle_port` action).
+- **Output**: on ports that offer more than one PoE output (ES-8-150W: 48V 802.3af/at and 24V passive), the current one is ticked. **Check what the powered device accepts before changing it**: 48V on a 24V-passive device can damage it.
+- **Port**: enable/disable appears only for ports whose *enabled* entity you have turned on (they are disabled by default; see [Safety](#safety)).
+- **Confirm**: turning PoE or a port off, restarting PoE and changing the output need a second tap. The button turns red and says **Sure?** for 4 seconds.
+
+![Second tap to confirm turning PoE off](docs/images/card-confirm.png)
+
+On narrow screens the ports wrap and the details move below them. Routers are drawn on one row, with the SFP port separate.
+
+![The card on narrow columns: an EdgeSwitch 10X and an EdgeRouter 4](docs/images/card-narrow.png)
+
+### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `device` | first UISP NMS device | Device name or id |
 | `protect` | `[]` | Ports (numbers, or names like `eth1`) without a disable button. Protect the ports that connect Home Assistant to the device: once disabled, it could not re-enable them |
-| `sfp` | from the model | SFP port numbers |
-| `cycle_seconds` | `5` | Off time for "Restart PoE" |
-| `accent` | teal | Header color |
+| `sfp` | from the model | SFP port numbers, drawn as cages |
+| `cycle_seconds` | `5` | Off time for **Restart** |
+| `accent` | teal | Header color, e.g. `'#5c6bc0'` |
 
 ## Notes
 
