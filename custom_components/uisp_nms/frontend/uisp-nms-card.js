@@ -1,6 +1,6 @@
 // Front panel of a UISP-managed switch or router, with link, rates and PoE control.
 // Adapted from the edgeswitch-card of marosmars/edgeswitch-homeassistant (MIT); see THIRD_PARTY_NOTICES.md.
-// Bundled with the uisp_nms integration, which serves it at /uisp_nms/uisp-nms-card.js and loads it on every
+// Bundled with the Isthmian integration (domain uisp_nms), which serves it at /uisp_nms/uisp-nms-card.js and loads it on every
 // dashboard, so no Lovelace resource is needed. Config:
 //   type: custom:uisp-nms-card
 //   device: <device id or name>   the UISP device to show (the visual editor offers a picker)
@@ -18,7 +18,7 @@ const T = {
   temp: 'Temp', links: 'Links', powered: 'PoE on', off: 'Off', on: 'On', restart: 'Restart', again: 'Sure?',
   protected: 'Protected port (uplink / path to HA): it cannot be disabled or cable-tested from here',
   noName: 'no name', noLink: 'no link', portOff: 'port disabled', port: 'Port', output: 'Output',
-  noDevice: 'No UISP NMS device found. Pick a device in the card settings.',
+  noDevice: 'No UISP device found in Isthmian. Pick a device in the card settings.',
   offline: 'Disconnected from UISP', unavailable: 'No port data: the device is not connected to UISP.',
   pick: 'Tap a port for details and controls.', lgLink: 'link 1G+', lgSlow: 'link < 1G', lgDis: 'port disabled', lgPoe: 'PoE on',
   voltageWarn: 'Check the powered device supports this voltage', up: 'up',
@@ -58,7 +58,7 @@ function paintCard(el, html) {
   if (root.__html !== m[3]) { root.__html = m[3]; root.__body.innerHTML = m[3]; }
 }
 
-// UISP NMS devices that have ports, as [device_id, device] sorted by name.
+// Isthmian devices that have ports, as [device_id, device] sorted by name.
 function uispDevices(hass) {
   const ids = new Set(Object.values(hass.entities || {})
     .filter((e) => e.platform === DOMAIN && e.translation_key === 'link' && e.device_id)
@@ -233,7 +233,7 @@ class UispNmsCard extends HTMLElement {
     return ports;
   }
 
-  // Every VLAN id on any UISP NMS port, sorted: colors are assigned in this order,
+  // Every VLAN id on any Isthmian port, sorted: colors are assigned in this order,
   // so a VLAN has the same color on every card.
   _allVlanIds() {
     const ids = new Set();
@@ -804,7 +804,7 @@ function defineUispNmsCard() {
   if (customElements.get('uisp-nms-card')) return;
   customElements.define('uisp-nms-card', UispNmsCard);
   window.customCards = window.customCards || [];
-  window.customCards.push({ type: 'uisp-nms-card', name: 'UISP NMS switch', description: 'Front panel of a UISP switch or router, with link, rates and PoE control', preview: true });
+  window.customCards.push({ type: 'uisp-nms-card', name: 'Isthmian switch', description: 'Front panel of a UISP switch or router, with link, rates and PoE control', preview: true });
 }
 if (customElements.get('home-assistant')) defineUispNmsCard();
 else customElements.whenDefined('home-assistant').then(defineUispNmsCard);

@@ -1,4 +1,4 @@
-"""Binary sensors for UISP NMS: device connected to UISP, port link."""
+"""Binary sensors for Isthmian: device connected to UISP, port link."""
 from __future__ import annotations
 
 from typing import Any

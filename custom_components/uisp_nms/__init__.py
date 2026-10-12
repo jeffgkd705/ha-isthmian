@@ -1,4 +1,4 @@
-"""The UISP NMS integration."""
+"""The Isthmian integration."""
 from __future__ import annotations
 
 import asyncio
@@ -190,7 +190,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: UispConfigEntry) -> bool:
-    """Set up UISP NMS from a config entry."""
+    """Set up Isthmian from a config entry."""
     coordinator = UispCoordinator(hass, entry, create_client(hass, dict(entry.data)))
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator

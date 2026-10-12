@@ -355,7 +355,7 @@ async def test_get_port_clients(hass: HomeAssistant, config_entry, fake_uisp: Fa
 
     # A device entity is not a port.
     assert hass.states.get("binary_sensor.edgeswitch_8_connected_to_uisp")
-    with pytest.raises(ServiceValidationError, match="not an entity of a UISP NMS port"):
+    with pytest.raises(ServiceValidationError, match="not an entity of an Isthmian port"):
         await hass.services.async_call(
             DOMAIN, SERVICE_GET_PORT_CLIENTS, {"entity_id": "binary_sensor.edgeswitch_8_connected_to_uisp"},
             blocking=True, return_response=True,

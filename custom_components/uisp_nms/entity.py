@@ -1,4 +1,4 @@
-"""Base entities for UISP NMS."""
+"""Base entities for Isthmian."""
 from __future__ import annotations
 
 from typing import Any

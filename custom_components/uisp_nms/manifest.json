@@ -1,6 +1,6 @@
 {
   "domain": "uisp_nms",
-  "name": "UISP NMS",
+  "name": "Isthmian for UISP",
   "after_dependencies": [
     "frontend",
     "http"
@@ -9,13 +9,13 @@
     "@jeffgkd705"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/jeffgkd705/ha-uisp-nms",
+  "documentation": "https://github.com/jeffgkd705/ha-isthmian",
   "integration_type": "hub",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/jeffgkd705/ha-uisp-nms/issues",
+  "issue_tracker": "https://github.com/jeffgkd705/ha-isthmian/issues",
   "loggers": [
     "custom_components.uisp_nms"
   ],
   "requirements": [],
-  "version": "0.4.2"
+  "version": "0.5.0"
 }

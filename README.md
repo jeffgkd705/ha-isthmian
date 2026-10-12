@@ -1,8 +1,12 @@
-# UISP NMS for Home Assistant
+# Isthmian for UISP
 
-*Unofficial: not made, supported or endorsed by Ubiquiti.*
+***Isthmus be the place.***
 
-Monitor and control the devices managed by a self-hosted UISP (UNMS) server — EdgeRouters, EdgeSwitches and other Ubiquiti devices — through UISP's API with a single API token. No device passwords are stored in Home Assistant.
+An isthmus is a narrow strip of land joining two larger ones; Isthmian joins Home Assistant and UISP. (Say it *ISS-mee-an*: the "th" is usually silent.)
+
+*Unofficial: not made, supported or endorsed by Ubiquiti. UISP is a trademark of Ubiquiti Inc.*
+
+Isthmian lets Home Assistant monitor and control the devices managed by a self-hosted UISP (UNMS) server — EdgeRouters, EdgeSwitches and other Ubiquiti devices — through UISP's API with a single API token. No device passwords are stored in Home Assistant.
 
 ## What you get
 
@@ -30,7 +34,7 @@ Both take any entity of the port (e.g. its link sensor) and return their result,
 
 - **PoE voltage is never guessed.** Turning a PoE switch on restores the output the port last used (remembered across restarts). On ports with several outputs and no known last output, turning on is refused; pick the output with the **PoE output** select. Passive 24V into a device that expects 802.3af/at (or the reverse) can damage it or leave it unpowered.
 - **PoE can power other switches.** If a switch is powered from another switch's PoE port, turning that PoE off (or power-cycling it) takes down the downstream switch and everything behind it.
-- **Port enable switches are disabled by default.** Disabling the port a device uses to reach UISP cuts it off, and it can then only be re-enabled locally on the device. Enable only the ones you need, in **Settings → Devices & services → UISP NMS → entities**.
+- **Port enable switches are disabled by default.** Disabling the port a device uses to reach UISP cuts it off, and it can then only be re-enabled locally on the device. Enable only the ones you need, in **Settings → Devices & services → Isthmian for UISP → entities**.
 
 ## Requirements
 
@@ -40,23 +44,23 @@ Both take any entity of the port (e.g. its link sensor) and return their result,
 
 ## Install
 
-1. In HACS, add `https://github.com/jeffgkd705/ha-uisp-nms` as a custom repository (type: Integration) and install **UISP NMS**. Or copy `custom_components/uisp_nms` into your Home Assistant `config/custom_components/` folder.
+1. In HACS, add `https://github.com/jeffgkd705/ha-isthmian` as a custom repository (type: Integration) and install **Isthmian for UISP**. Or copy `custom_components/uisp_nms` into your Home Assistant `config/custom_components/` folder.
 2. Restart Home Assistant.
-3. **Settings → Devices & services → Add integration → UISP NMS**. Enter the UISP URL (e.g. `https://uisp.example.com`) and the API token.
+3. **Settings → Devices & services → Add integration → Isthmian for UISP**. Enter the UISP URL (e.g. `https://uisp.example.com`) and the API token.
 4. If UISP uses its default self-signed certificate, you are shown its SHA-256 fingerprint. Check it matches your server (for example in the browser's certificate viewer) and submit to trust exactly that certificate. If the certificate is ever replaced, the integration stops connecting until you confirm the new one with **Reconfigure**.
 
 ## Dashboard card
 
 The integration ships a card that draws a device's front panel, with link and PoE lights, speed, current rates, PoE output and VLANs for each port, and CPU, RAM, temperature, links and PoE in the header. You can turn PoE on and off, restart it and change its output from the card.
 
-![UISP NMS card for an EdgeSwitch 8 150W, with port 3 selected](docs/images/card-wide.png)
+![Isthmian card for an EdgeSwitch 8 150W, with port 3 selected](docs/images/card-wide.png)
 
 ### Add the card
 
 The card is loaded on every dashboard automatically, so there is no resource to add.
 
 1. Open a dashboard, click the **pencil** (Edit dashboard) at the top right, then **+ Add card**.
-2. Search for **UISP NMS** and choose **UISP NMS switch**.
+2. Search for **Isthmian** and choose **Isthmian switch**.
 3. Pick the **Device** (one card per switch or router) and click **Save**.
 4. Recommended: protect the uplink ports. In the card editor, click **Show code editor** and add `protect:` with the port numbers that connect the device to the rest of your network, e.g. `protect: [1]`. Those ports get no disable button.
 
@@ -68,7 +72,7 @@ device: Living Room Switch   # device name (as shown in Home Assistant) or devic
 protect: [1]                 # ports that can't be disabled from the card (uplinks)
 ```
 
-If the card picker does not list **UISP NMS switch**, or the dashboard shows *Custom element doesn't exist: uisp-nms-card*, restart Home Assistant after installing or updating, then reload the page with **Ctrl+F5** (**Cmd+Shift+R** on a Mac).
+If the card picker does not list **Isthmian switch**, or the dashboard shows *Custom element doesn't exist: uisp-nms-card*, restart Home Assistant after installing or updating, then reload the page with **Ctrl+F5** (**Cmd+Shift+R** on a Mac).
 
 ### Use the card
 
@@ -96,7 +100,7 @@ On narrow screens the ports wrap and the details move below them. Routers are dr
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `device` | first UISP NMS device | Device name or id |
+| `device` | first Isthmian device | Device name or id |
 | `protect` | `[]` | Ports (numbers, or names like `eth1`) without a disable button or cable test. Protect the ports that connect Home Assistant to the device: once disabled, it could not re-enable them |
 | `sfp` | from the model | SFP port numbers, drawn as cages |
 | `cycle_seconds` | `5` | Off time for **Restart** |
@@ -121,6 +125,10 @@ uv pip install --python .venv/bin/python pytest-homeassistant-custom-component
 ```
 
 Tests run against an in-memory fake of the UISP API (`tests/conftest.py`).
+
+## Renamed from UISP NMS
+
+Versions before 0.5.0 were called UISP NMS. Only the names you see changed: the domain (`uisp_nms`), entity ids, the `uisp_nms.*` actions and the card type (`custom:uisp-nms-card`) are the same, so updating needs no changes to your setup. An existing entry keeps its title, e.g. *UISP NMS (uisp.example.com)*; rename it from its ⋮ menu if you like.
 
 ## Acknowledgements
 

@@ -1,4 +1,4 @@
-"""Fixtures for UISP NMS tests."""
+"""Fixtures for Isthmian tests."""
 from __future__ import annotations
 
 import copy
@@ -225,7 +225,7 @@ def config_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         unique_id="uisp.example.test",
-        title="UISP NMS (uisp.example.test)",
+        title="Isthmian (uisp.example.test)",
         data={CONF_URL: URL, CONF_API_TOKEN: "token", CONF_FINGERPRINT: FINGERPRINT},
     )
 

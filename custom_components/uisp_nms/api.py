@@ -1,4 +1,4 @@
-"""Client for the UISP NMS REST API (v2.1)."""
+"""Client for the UISP REST API (v2.1)."""
 from __future__ import annotations
 
 import asyncio
@@ -72,7 +72,7 @@ def fetch_certificate_der(url: str, timeout: float = 10) -> bytes:
 
 
 class UispClient:
-    """Minimal async client for the UISP NMS API."""
+    """Minimal async client for the UISP API."""
 
     def __init__(
         self,

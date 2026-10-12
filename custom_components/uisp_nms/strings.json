@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to UISP NMS",
+        "title": "Connect Isthmian to UISP",
         "description": "Create an API token in UISP under Settings → Users → API Tokens. A read-only token is enough for monitoring; switching PoE or ports needs a token with write access.",
         "data": {
           "url": "UISP URL",
@@ -13,7 +13,7 @@
         }
       },
       "reconfigure": {
-        "title": "Reconfigure UISP NMS",
+        "title": "Reconfigure Isthmian",
         "description": "Change the URL or API token (leave the token blank to keep the current one). If UISP's certificate was replaced, submit unchanged to review and trust the new one.",
         "data": {
           "url": "UISP URL",
@@ -88,7 +88,7 @@
       "message": "{entity_id} is off; only a port that is supplying power can be power-cycled."
     },
     "not_port": {
-      "message": "{entity_id} is not an entity of a UISP NMS port."
+      "message": "{entity_id} is not an entity of an Isthmian port."
     },
     "device_disconnected": {
       "message": "The device of {entity_id} is not connected to UISP."

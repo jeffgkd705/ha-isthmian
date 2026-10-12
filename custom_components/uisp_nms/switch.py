@@ -1,4 +1,4 @@
-"""Switches for UISP NMS: PoE output and port enable per port."""
+"""Switches for Isthmian: PoE output and port enable per port."""
 from __future__ import annotations
 
 from typing import Any

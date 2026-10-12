@@ -1,4 +1,4 @@
-"""Constants for the UISP NMS integration."""
+"""Constants for the Isthmian integration."""
 from typing import Final
 
 DOMAIN: Final = "uisp_nms"

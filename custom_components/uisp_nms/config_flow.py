@@ -1,4 +1,4 @@
-"""Config flow for UISP NMS."""
+"""Config flow for Isthmian."""
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -46,7 +46,7 @@ def _unique_id(url: str) -> str:
 
 
 class UispConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for UISP NMS."""
+    """Handle a config flow for Isthmian."""
 
     VERSION = 1
 
@@ -144,7 +144,7 @@ class UispConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         self._abort_if_unique_id_configured()
         return self.async_create_entry(
-            title=f"UISP NMS ({urlsplit(self._data[CONF_URL]).hostname})", data=self._data
+            title=f"Isthmian ({urlsplit(self._data[CONF_URL]).hostname})", data=self._data
         )
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:

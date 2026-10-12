@@ -1,4 +1,4 @@
-"""Sensors for UISP NMS: device CPU, memory, boot time; port traffic rates."""
+"""Sensors for Isthmian: device CPU, memory, boot time; port traffic rates."""
 from __future__ import annotations
 
 from collections.abc import Callable
