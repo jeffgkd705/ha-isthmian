@@ -42,6 +42,7 @@ Service **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 
 
 - UISP is polled every 30 seconds: one request for the device list plus one per connected device. After a change, the port is re-read 5 seconds later, because UISP answers before the device has applied it. A change takes about 3 seconds to go through UISP.
 - Data rates come from UISP's `rxrate`/`txrate` (bits per second).
+- The integration's icon ships in `custom_components/uisp_nms/brand/` and is shown by Home Assistant 2026.3 or later; older versions show a placeholder. It is an original design, not Ubiquiti's logo.
 - Avoid opening UISP's API documentation page (`/nms/api-docs`) on small servers: generating it took over 100 seconds of CPU on UISP 3.1.65, made UISP restart its API and disconnected all devices.
 
 ## Development

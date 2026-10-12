@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -17,6 +18,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
 from .conftest import ROUTER, SWITCH_8, SWITCH_10X, FakeUisp
@@ -233,3 +235,20 @@ async def test_unload(hass: HomeAssistant, config_entry, fake_uisp: FakeUisp) ->
     assert config_entry.state is ConfigEntryState.NOT_LOADED
     # Router is unaffected by the switch-specific fixtures.
     assert ROUTER
+
+
+async def test_brand_icon_served(hass: HomeAssistant, hass_client) -> None:
+    """Home Assistant serves the integration's own icon from brand/."""
+    assert await async_setup_component(hass, "brands", {})
+    client = await hass_client()
+    brand = Path(__file__).parent.parent / "custom_components" / DOMAIN / "brand"
+    expected = {
+        "icon.png": "icon.png",
+        "icon@2x.png": "icon@2x.png",
+        "logo.png": "icon.png",
+        "dark_icon.png": "icon.png",
+    }
+    for image, source in expected.items():
+        response = await client.get(f"/api/brands/integration/{DOMAIN}/{image}")
+        assert response.status == 200, image
+        assert await response.read() == (brand / source).read_bytes(), image
