@@ -36,23 +36,33 @@ class UispVlans:
 
     native: dict[str, int] = field(default_factory=dict)
     tagged: dict[str, list[int]] = field(default_factory=dict)
+    names: dict[int, str] = field(default_factory=dict)
 
     @classmethod
-    def from_switch_detail(cls, detail: dict[str, Any]) -> UispVlans:
-        """Parse eswitch.vlans of a switch's device detail."""
-        vlans = (detail.get("eswitch") or {}).get("vlans") or {}
-        native = {
-            name: cfg["vlanNative"]
-            for name, cfg in (vlans.get("interface") or {}).items()
-            if isinstance(cfg, dict) and isinstance(cfg.get("vlanNative"), int)
-        }
+    def from_switch_vlans(cls, config: dict[str, Any]) -> UispVlans:
+        """Parse a switch's VLAN configuration (GET /devices/{id}/vlans).
+
+        Each VLAN lists its member ports as tagged or untagged. VLAN ranges
+        are skipped.
+        """
+        native: dict[str, int] = {}
         tagged: dict[str, list[int]] = {}
-        for vlan_id, cfg in (vlans.get("vlanId") or {}).items():
-            if not str(vlan_id).isdigit():
+        names: dict[int, str] = {}
+        for vlan in config.get("vlans") or []:
+            if not isinstance(vlan, dict) or not str(vlan.get("id")).isdigit():
                 continue
-            for name in (cfg or {}).get("interfaces") or []:
-                tagged.setdefault(name, []).append(int(vlan_id))
-        return cls(native, {name: sorted(ids) for name, ids in tagged.items()})
+            vlan_id = int(vlan["id"])
+            if vlan.get("name"):
+                names[vlan_id] = vlan["name"]
+            for member in vlan.get("participation") or []:
+                name = (member.get("interface") or {}).get("id")
+                if not name:
+                    continue
+                if member.get("mode") == "untagged":
+                    native[name] = vlan_id
+                elif member.get("mode") == "tagged":
+                    tagged.setdefault(name, []).append(vlan_id)
+        return cls(native, {name: sorted(ids) for name, ids in tagged.items()}, names)
 
     @classmethod
     def from_router_interfaces(cls, interfaces: dict[str, dict[str, Any]]) -> UispVlans:
@@ -198,8 +208,9 @@ class UispCoordinator(DataUpdateCoordinator[dict[str, UispDeviceData]]):
     async def _async_update_vlans(self, result: dict[str, UispDeviceData]) -> None:
         """Attach VLAN membership and collect VLAN names.
 
-        Switch membership comes from the device detail, re-read at most every
-        VLAN_REFRESH_INTERVAL seconds. VLANs are informational, so a failure
+        Switch membership and VLAN names come from the switch's VLAN
+        configuration, re-read at most every VLAN_REFRESH_INTERVAL seconds.
+        Names from router VLAN interface descriptions take precedence. VLANs are informational, so a failure
         keeps the previous membership instead of failing the update.
         """
         names: dict[int, str] = {}
@@ -216,14 +227,17 @@ class UispCoordinator(DataUpdateCoordinator[dict[str, UispDeviceData]]):
             fetched, vlans = self._switch_vlans.get(device_id, (None, None))
             if data.connected and (fetched is None or now - fetched >= VLAN_REFRESH_INTERVAL):
                 try:
-                    detail = await self.client.get_device_detail(device_id)
+                    config = await self.client.get_device_vlans(device_id)
                 except UispError as err:
                     _LOGGER.debug("Could not read VLANs of %s: %s", device_id, err)
                 else:
-                    vlans = UispVlans.from_switch_detail(detail)
+                    vlans = UispVlans.from_switch_vlans(config)
                     self._switch_vlans[device_id] = (now, vlans)
             if vlans is not None:
                 data.vlans = vlans
+        for data in result.values():
+            for vlan_id, name in data.vlans.names.items():
+                names.setdefault(vlan_id, name)
         self.vlan_names = names
 
     def _remember_poe_output(self, device_id: str, interface: str, iface: dict[str, Any]) -> None:

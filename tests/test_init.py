@@ -269,26 +269,29 @@ async def test_card_served(hass: HomeAssistant, hass_client) -> None:
 
 
 async def test_vlans(hass: HomeAssistant, config_entry, fake_uisp: FakeUisp) -> None:
-    """Link sensors carry VLAN membership; switch detail is re-read only every 10 minutes."""
+    """Link sensors carry VLAN membership; switch VLANs are re-read only every 10 minutes."""
     await _setup(hass, config_entry)
     port3 = hass.states.get("binary_sensor.edgeswitch_8_port_3_link").attributes
     assert port3["native_vlan"] == 50
-    assert port3["native_vlan_name"] is None
+    assert port3["native_vlan_name"] == "Cameras"  # named on another switch
     assert port3["tagged_vlans"] == []
     eth1 = hass.states.get("binary_sensor.gw_eth1_link").attributes
+    # The router's VLAN interface description wins over the switch's name.
     assert eth1["tagged_vlans"] == [{"id": 10, "name": "General"}]
     assert eth1["native_vlan"] is None
     uplink = hass.states.get("binary_sensor.family_room_switch_2_port_1_link").attributes
-    assert uplink["native_vlan"] == 1
-    assert uplink["tagged_vlans"] == [{"id": 10, "name": "General"}, {"id": 50, "name": None}]
-    reads = fake_uisp.detail_reads
-    assert reads == 2  # one per switch; the router needs no detail
+    assert (uplink["native_vlan"], uplink["native_vlan_name"]) == (1, "default")
+    # The VLAN range is skipped.
+    assert uplink["tagged_vlans"] == [{"id": 10, "name": "General"}, {"id": 50, "name": "Cameras"}]
+    reads = fake_uisp.vlan_reads
+    assert reads == 2  # one per switch; the router's VLANs are its interfaces
 
-    fake_uisp.details[SWITCH_8]["eswitch"]["vlans"]["interface"]["port3"]["vlanNative"] = 10
+    fake_uisp.vlans[SWITCH_8]["vlans"][0]["participation"] = []
+    fake_uisp.vlans[SWITCH_8]["vlans"][1]["participation"] = [{"interface": {"id": "port3"}, "mode": "untagged"}]
     coordinator = config_entry.runtime_data
     await coordinator.async_refresh()
     await hass.async_block_till_done()
-    assert fake_uisp.detail_reads == reads
+    assert fake_uisp.vlan_reads == reads
     assert hass.states.get("binary_sensor.edgeswitch_8_port_3_link").attributes["native_vlan"] == 50
 
     with patch("custom_components.uisp_nms.coordinator.time.monotonic", return_value=time.monotonic() + 601):
@@ -299,9 +302,9 @@ async def test_vlans(hass: HomeAssistant, config_entry, fake_uisp: FakeUisp) -> 
 
 
 async def test_vlan_read_failure_keeps_entities(hass: HomeAssistant, config_entry, fake_uisp: FakeUisp) -> None:
-    """A failing detail request does not fail the update."""
+    """A failing VLAN request does not fail the update."""
     with patch(
-        "custom_components.uisp_nms.api.UispClient.get_device_detail",
+        "custom_components.uisp_nms.api.UispClient.get_device_vlans",
         side_effect=UispConnectionError("timeout"),
     ):
         await _setup(hass, config_entry)

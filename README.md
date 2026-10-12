@@ -68,7 +68,7 @@ If the card picker does not list **UISP NMS switch**, or the dashboard shows *Cu
 ### Use the card
 
 - **Read the panel.** Each port shows its UISP description, current download (↓) and upload (↑) as seen by the connected device, and two lights: green for a link at 1 Gbit/s or more, amber for a slower link (the speed is printed in the jack), red for a disabled port. The second light is amber when the port supplies PoE, and the jack shows the output (24V, 48V) or the power drawn. Hover over a port for its error and drop counters.
-- **VLANs.** A port's untagged VLAN colors its outline, and each tagged VLAN adds a dot in the jack; the legend lists the device's VLANs. VLAN 1 (the default) is not colored. A VLAN has the same color on every card. Names come from the descriptions of VLAN interfaces in UISP (for example `eth1.10` "Home" on the router); VLANs without one are shown by number.
+- **VLANs.** A port's untagged VLAN colors its outline, and each tagged VLAN adds a dot in the jack; the legend lists the device's VLANs. VLAN 1 (the default) is not colored. A VLAN has the same color on every card. Names come from the descriptions of the router's VLAN interfaces in UISP (for example `eth1.10` "Home"), otherwise from the VLAN names configured on the switches; VLANs without either are shown by number.
 - **Tap a port** for its details and controls. Tap it again, the ✕, or press **Esc** to close them.
 - **PoE**: **Off**/**On** and **Restart** (off for 5 seconds, then back on with the same output, via the `uisp_nms.power_cycle_port` action).
 - **Output**: on ports that offer more than one PoE output (ES-8-150W: 48V 802.3af/at and 24V passive), the current one is ticked. **Check what the powered device accepts before changing it**: 48V on a 24V-passive device can damage it.
@@ -98,7 +98,7 @@ On narrow screens the ports wrap and the details move below them. Routers are dr
 
 - UISP is polled every 30 seconds: one request for the device list plus one per connected device. After a change, the port is re-read 5 seconds later, because UISP answers before the device has applied it. A change takes about 3 seconds to go through UISP.
 - Data rates come from UISP's `rxrate`/`txrate` (bits per second).
-- Switch VLAN membership comes from UISP's device detail, which is larger, so it is read when the integration starts and then every 10 minutes rather than every 30 seconds. VLAN changes can take up to 10 minutes to show.
+- Switch VLANs (names and port membership) come from UISP's VLAN configuration of each switch, which rarely changes, so it is read when the integration starts and then every 10 minutes rather than every 30 seconds. VLAN changes can take up to 10 minutes to show. VLAN ranges are not shown.
 - The integration's icon ships in `custom_components/uisp_nms/brand/` and is shown by Home Assistant 2026.3 or later; older versions show a placeholder. It is an original design, not Ubiquiti's logo.
 - Avoid opening UISP's API documentation page (`/nms/api-docs`) on small servers: generating it took over 100 seconds of CPU on UISP 3.1.65, made UISP restart its API and disconnected all devices.
 

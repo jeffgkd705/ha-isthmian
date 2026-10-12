@@ -92,18 +92,31 @@ def make_interfaces() -> dict[str, list[dict[str, Any]]]:
     }
 
 
-def make_details() -> dict[str, dict[str, Any]]:
-    """Device detail (only the VLAN part) of the switches."""
+def _member(port: str, mode: str) -> dict[str, Any]:
+    return {"interface": {"id": port}, "mode": mode}
+
+
+def make_vlans() -> dict[str, dict[str, Any]]:
+    """VLAN configuration of the switches, as from GET /devices/{id}/vlans."""
     return {
         SWITCH_10X: {
-            "eswitch": {
-                "vlans": {
-                    "vlanId": {"10": {"interfaces": ["port1", "port8"]}, "50": {"interfaces": ["port1"]}},
-                    "interface": {"port1": {"vlanNative": 1}, "port8": {"vlanNative": 1}},
-                }
-            }
+            "trunks": [],
+            "vlans": [
+                {"id": "1", "type": "single", "name": "default",
+                 "participation": [_member("port1", "untagged"), _member("port8", "untagged")]},
+                {"id": "10", "type": "single", "name": "Office",
+                 "participation": [_member("port1", "tagged"), _member("port8", "tagged")]},
+                {"id": "50", "type": "single", "name": "Cameras", "participation": [_member("port1", "tagged")]},
+                {"id": "100-110", "type": "range", "name": "Range", "participation": [_member("port1", "tagged")]},
+            ],
         },
-        SWITCH_8: {"eswitch": {"vlans": {"vlanId": {}, "interface": {"port3": {"vlanNative": 50}}}}},
+        SWITCH_8: {
+            "trunks": [],
+            "vlans": [
+                {"id": "50", "type": "single", "name": "", "participation": [_member("port3", "untagged")]},
+                {"id": "10", "type": "single", "name": "", "participation": []},
+            ],
+        },
     }
 
 
@@ -115,8 +128,8 @@ class FakeUisp:
         self.interfaces = make_interfaces()
         self.puts: list[tuple[str, str, dict[str, Any]]] = []
         self.blocks: list[str] = []
-        self.details = make_details()
-        self.detail_reads = 0
+        self.vlans = make_vlans()
+        self.vlan_reads = 0
 
     async def get_devices(self) -> list[dict[str, Any]]:
         return copy.deepcopy(self.devices)
@@ -149,9 +162,9 @@ def fake_uisp() -> Generator[FakeUisp]:
             return await fake.get_devices()
         if method == "GET" and parts[-1] == "interfaces":
             return await fake.get_interfaces(parts[-2])
-        if method == "GET" and parts[-1] == "detail":
-            fake.detail_reads += 1
-            return copy.deepcopy(fake.details.get(parts[-2], {}))
+        if method == "GET" and parts[-1] == "vlans":
+            fake.vlan_reads += 1
+            return copy.deepcopy(fake.vlans.get(parts[-2], {}))
         if method == "POST" and parts[-1] in ("block", "unblock"):
             assert payload is None
             await fake.block(parts[-4], parts[-2], parts[-1] == "block", path)

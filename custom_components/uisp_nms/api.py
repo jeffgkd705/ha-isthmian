@@ -132,11 +132,11 @@ class UispClient:
             raise UispConnectionError(f"Device list is not a list: {type(data)}")
         return data
 
-    async def get_device_detail(self, device_id: str) -> dict[str, Any]:
-        """Return one device with its interfaces and, for switches, VLAN membership."""
-        data = await self._request("GET", f"{API_DEVICES}/{device_id}/detail")
+    async def get_device_vlans(self, device_id: str) -> dict[str, Any]:
+        """Return a switch's VLAN configuration: VLANs with names and member ports."""
+        data = await self._request("GET", f"{API_DEVICES}/{device_id}/vlans")
         if not isinstance(data, dict):
-            raise UispConnectionError(f"Device detail is not an object: {type(data)}")
+            raise UispConnectionError(f"Device VLANs are not an object: {type(data)}")
         return data
 
     async def get_interfaces(self, device_id: str) -> list[dict[str, Any]]:
