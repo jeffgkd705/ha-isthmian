@@ -86,6 +86,15 @@
     },
     "poe_not_on": {
       "message": "{entity_id} is off; only a port that is supplying power can be power-cycled."
+    },
+    "not_port": {
+      "message": "{entity_id} is not an entity of a UISP NMS port."
+    },
+    "device_disconnected": {
+      "message": "The device of {entity_id} is not connected to UISP."
+    },
+    "cable_test_unsupported": {
+      "message": "UISP does not support a cable test on the port of {entity_id} (for example an SFP port)."
     }
   },
   "services": {
@@ -100,6 +109,26 @@
         "off_seconds": {
           "name": "Off time",
           "description": "Seconds to keep power off."
+        }
+      }
+    },
+    "get_port_clients": {
+      "name": "Get port clients",
+      "description": "Has UISP fetch the device's MAC table and returns the devices seen on a port: MAC address, hostname, vendor, IP addresses and VLAN.",
+      "fields": {
+        "entity_id": {
+          "name": "Port",
+          "description": "The port's link sensor (or any other entity of the port)."
+        }
+      }
+    },
+    "cable_test": {
+      "name": "Cable test",
+      "description": "Tests the cable on a copper port and returns its status and length, per pair. The port loses link while the test runs, so don't test the port that connects the device to UISP.",
+      "fields": {
+        "entity_id": {
+          "name": "Port",
+          "description": "The port's link sensor (or any other entity of the port)."
         }
       }
     }

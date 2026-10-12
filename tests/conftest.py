@@ -46,7 +46,7 @@ def _device(device_id: str, name: str, model: str, type_: str, *, status: str = 
 
 def _port(position: int, *, poe: str | None = None, caps: list[str] | None = None,
           link: bool = True, description: str | None = None, type_: str = "port",
-          name: str | None = None) -> dict[str, Any]:
+          name: str | None = None, cable_test: bool = True) -> dict[str, Any]:
     return {
         "identification": {
             "position": position,
@@ -61,6 +61,7 @@ def _port(position: int, *, poe: str | None = None, caps: list[str] | None = Non
         },
         "statistics": {"rxrate": 4195512, "txrate": 62936, "errors": 0, "dropped": 0},
         "poe": {"output": poe, "capacities": caps or []},
+        "capabilities": {"supportCableTest": cable_test},
     }
 
 
@@ -77,11 +78,12 @@ def make_interfaces() -> dict[str, list[dict[str, Any]]]:
         SWITCH_10X: [
             _port(1, description="Uplink"),
             _port(8, poe="24v", caps=["off", "24v"], description="Family Room AP"),
-            {"identification": {"position": 1, "type": "lag", "name": "lag1"}, "poe": {}},
+            {"identification": {"position": 1, "type": "lag", "name": "lag1"}, "poe": {},
+             "lag": {"ports": ["port1"]}},
         ],
         SWITCH_8: [
             _port(3, poe="24v", caps=["off", "active", "24v"]),
-            _port(8, poe="off", caps=["off", "active", "24v"], link=False),
+            _port(8, poe="off", caps=["off", "active", "24v"], link=False, cable_test=False),
         ],
         ROUTER: [
             _port(0, type_="eth", name="eth0"),
@@ -120,6 +122,29 @@ def make_vlans() -> dict[str, dict[str, Any]]:
     }
 
 
+def _mac(interface: str, mac: str, vlan: int, hostname: str = "", addresses: list[str] | None = None) -> dict[str, Any]:
+    return {"interfaceId": interface, "mac": mac, "vlan": vlan, "hostname": hostname,
+            "vendor": "Ubiquiti Inc", "addresses": addresses or [], "device": {}, "site": None}
+
+
+MAC_TABLE = [
+    _mac("port8", "02:00:00:00:00:a1", 10, "office-ap", ["192.0.2.21"]),
+    _mac("port8", "02:00:00:00:00:a2", 50),
+    _mac("lag1", "02:00:00:00:00:b1", 10, "router"),
+    _mac("port1", "02:00:00:00:00:b2", 1, "Desk PC"),
+    _mac("port2", "02:00:00:00:00:c1", 10, "elsewhere"),
+]
+# Entries per page of the fake MAC table, small so that paging is exercised.
+MAC_PAGE_SIZE = 2
+
+CABLE_RESULT = {
+    "status": "normal",
+    "lengthFrom": 10,
+    "lengthTo": 15,
+    "pairs": {f"pair{p}": {"state": "normal", "lengthFrom": 10, "lengthTo": 15} for p in "ABCD"},
+}
+
+
 class FakeUisp:
     """In-memory stand-in for the UISP API, applying writes like UISP does."""
 
@@ -130,6 +155,9 @@ class FakeUisp:
         self.blocks: list[str] = []
         self.vlans = make_vlans()
         self.vlan_reads = 0
+        self.mac_table = list(MAC_TABLE)
+        self.mac_refreshes = 0
+        self.cable_tests: list[tuple[str, str]] = []
 
     async def get_devices(self) -> list[dict[str, Any]]:
         return copy.deepcopy(self.devices)
@@ -156,7 +184,7 @@ def fake_uisp() -> Generator[FakeUisp]:
     """Patch the client's HTTP layer with FakeUisp."""
     fake = FakeUisp()
 
-    async def request(self, method: str, path: str, payload: Any = None) -> Any:
+    async def request(self, method: str, path: str, payload: Any = None, timeout: float = 0) -> Any:
         parts = path.split("?")[0].split("/")
         if method == "GET" and path.endswith("/devices"):
             return await fake.get_devices()
@@ -165,6 +193,19 @@ def fake_uisp() -> Generator[FakeUisp]:
         if method == "GET" and parts[-1] == "vlans":
             fake.vlan_reads += 1
             return copy.deepcopy(fake.vlans.get(parts[-2], {}))
+        if method == "GET" and parts[-1] == "mac-table-refresh":
+            fake.mac_refreshes += 1
+            return {"result": True}
+        if method == "GET" and parts[-1] == "mac-table":
+            page = int(path.split("page=")[1])
+            pages = max(1, -(-len(fake.mac_table) // MAC_PAGE_SIZE))
+            start = (page - 1) * MAC_PAGE_SIZE
+            return {"deviceId": parts[-2], "macTable": fake.mac_table[start:start + MAC_PAGE_SIZE],
+                    "pagination": {"total": len(fake.mac_table), "page": page, "pages": pages}}
+        if method == "POST" and parts[-1] == "cable-test":
+            assert payload is None
+            fake.cable_tests.append((parts[-4], parts[-2]))
+            return copy.deepcopy(CABLE_RESULT)
         if method == "POST" and parts[-1] in ("block", "unblock"):
             assert payload is None
             await fake.block(parts[-4], parts[-2], parts[-1] == "block", path)

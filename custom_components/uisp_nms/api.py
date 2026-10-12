@@ -11,7 +11,13 @@ from urllib.parse import urlsplit
 
 import aiohttp
 
-from .const import API_DEVICES, DEFAULT_TIMEOUT, HEADER_AUTH_TOKEN
+from .const import (
+    API_DEVICES,
+    CABLE_TEST_TIMEOUT,
+    DEFAULT_TIMEOUT,
+    HEADER_AUTH_TOKEN,
+    MAX_MAC_TABLE_PAGES,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,7 +101,9 @@ class UispClient:
         """Return the UISP base URL, without a trailing slash."""
         return self._url
 
-    async def _request(self, method: str, path: str, payload: Any = None) -> Any:
+    async def _request(
+        self, method: str, path: str, payload: Any = None, timeout: float = DEFAULT_TIMEOUT
+    ) -> Any:
         """Perform a request and return the parsed JSON body."""
         try:
             async with self._session.request(
@@ -104,7 +112,7 @@ class UispClient:
                 headers={HEADER_AUTH_TOKEN: self._token, "Accept": "application/json"},
                 json=payload,
                 ssl=self._ssl,
-                timeout=aiohttp.ClientTimeout(total=DEFAULT_TIMEOUT),
+                timeout=aiohttp.ClientTimeout(total=timeout),
             ) as response:
                 if response.status in _AUTH_FAILED_STATUSES:
                     raise UispAuthError(f"{method} {path} rejected (HTTP {response.status})")
@@ -137,6 +145,44 @@ class UispClient:
         data = await self._request("GET", f"{API_DEVICES}/{device_id}/vlans")
         if not isinstance(data, dict):
             raise UispConnectionError(f"Device VLANs are not an object: {type(data)}")
+        return data
+
+    async def get_mac_table(self, device_id: str) -> list[dict[str, Any]]:
+        """Have UISP fetch a device's MAC table from the device, then return its entries.
+
+        UISP keeps the table only from the last fetch, which nothing does on
+        its own, so the fetch comes first.
+        """
+        lock = self._write_locks.setdefault(device_id, asyncio.Lock())
+        async with lock:
+            await self._request("GET", f"{API_DEVICES}/{device_id}/mac-table-refresh")
+            entries: list[dict[str, Any]] = []
+            page = 1
+            while True:
+                data = await self._request("GET", f"{API_DEVICES}/{device_id}/mac-table?page={page}")
+                if not isinstance(data, dict):
+                    raise UispConnectionError(f"MAC table is not an object: {type(data)}")
+                entries.extend(e for e in data.get("macTable") or [] if isinstance(e, dict))
+                pages = (data.get("pagination") or {}).get("pages") or 1
+                if page >= min(pages, MAX_MAC_TABLE_PAGES):
+                    return entries
+                page += 1
+
+    async def cable_test(self, device_id: str, interface_name: str) -> dict[str, Any]:
+        """Run a cable test on a port and return UISP's result.
+
+        The port loses link while the test runs.
+        """
+        lock = self._write_locks.setdefault(device_id, asyncio.Lock())
+        async with lock:
+            _LOGGER.debug("Cable test on %s of %s", interface_name, device_id)
+            data = await self._request(
+                "POST",
+                f"{API_DEVICES}/{device_id}/interfaces/{interface_name}/cable-test",
+                timeout=CABLE_TEST_TIMEOUT,
+            )
+        if not isinstance(data, dict):
+            raise UispConnectionError(f"Cable test result is not an object: {type(data)}")
         return data
 
     async def get_interfaces(self, device_id: str) -> list[dict[str, Any]]:

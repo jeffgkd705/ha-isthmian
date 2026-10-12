@@ -9,14 +9,22 @@ import voluptuous as vol
 
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.const import CONF_API_TOKEN, CONF_URL, Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .api import UispClient
-from .const import CARD_URL, CONF_FINGERPRINT, DOMAIN, SERVICE_POWER_CYCLE_PORT
+from .const import (
+    CARD_URL,
+    CONF_FINGERPRINT,
+    DOMAIN,
+    SERVICE_CABLE_TEST,
+    SERVICE_GET_PORT_CLIENTS,
+    SERVICE_POWER_CYCLE_PORT,
+)
 from .coordinator import UispConfigEntry, UispCoordinator
 
 PLATFORMS: list[Platform] = [
@@ -36,6 +44,8 @@ POWER_CYCLE_SCHEMA = vol.Schema(
         vol.Optional("off_seconds", default=5): vol.All(vol.Coerce(int), vol.Range(min=1, max=120)),
     }
 )
+
+PORT_SCHEMA = vol.Schema({vol.Required("entity_id"): cv.entity_id})
 
 
 def create_client(hass: HomeAssistant, data: dict) -> UispClient:
@@ -67,8 +77,44 @@ async def _async_register_card(hass: HomeAssistant) -> None:
     add_extra_js_url(hass, f"{CARD_URL}?v={digest}")
 
 
+def _resolve_port(hass: HomeAssistant, entity_id: str) -> tuple[UispCoordinator, str, str]:
+    """Return the coordinator, device id and interface of a UISP port entity.
+
+    Port entities have unique ids "{device_id}_{interface}_{key}".
+    """
+    entry = er.async_get(hass).async_get(entity_id)
+    parts = entry.unique_id.split("_") if entry and entry.platform == DOMAIN else []
+    config_entry = (
+        hass.config_entries.async_get_entry(entry.config_entry_id)
+        if entry and entry.config_entry_id
+        else None
+    )
+    if len(parts) < 3 or config_entry is None or config_entry.state is not ConfigEntryState.LOADED:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="not_port",
+            translation_placeholders={"entity_id": entity_id},
+        )
+    coordinator: UispCoordinator = config_entry.runtime_data
+    device_id, interface = parts[0], parts[1]
+    data = coordinator.data.get(device_id)
+    if data is None or interface not in data.interfaces:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="not_port",
+            translation_placeholders={"entity_id": entity_id},
+        )
+    if not data.connected:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="device_disconnected",
+            translation_placeholders={"entity_id": entity_id},
+        )
+    return coordinator, device_id, interface
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Serve the dashboard card and register the power_cycle_port service."""
+    """Serve the dashboard card and register the services."""
     await _async_register_card(hass)
 
     async def async_power_cycle_port(call: ServiceCall) -> None:
@@ -105,8 +151,40 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await asyncio.sleep(call.data["off_seconds"])
         await hass.services.async_call("switch", "turn_on", target, blocking=True)
 
+    async def async_get_port_clients(call: ServiceCall) -> ServiceResponse:
+        """Return the devices seen on a port, from a freshly fetched MAC table."""
+        coordinator, device_id, interface = _resolve_port(hass, call.data["entity_id"])
+        return await coordinator.async_port_clients(device_id, interface)
+
+    async def async_cable_test(call: ServiceCall) -> ServiceResponse:
+        """Run a cable test on a port and return the result. The port loses link meanwhile."""
+        entity_id = call.data["entity_id"]
+        coordinator, device_id, interface = _resolve_port(hass, entity_id)
+        iface = coordinator.data[device_id].interfaces[interface]
+        if not (iface.get("capabilities") or {}).get("supportCableTest"):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="cable_test_unsupported",
+                translation_placeholders={"entity_id": entity_id},
+            )
+        return await coordinator.async_cable_test(device_id, interface)
+
     hass.services.async_register(
         DOMAIN, SERVICE_POWER_CYCLE_PORT, async_power_cycle_port, schema=POWER_CYCLE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_PORT_CLIENTS,
+        async_get_port_clients,
+        schema=PORT_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CABLE_TEST,
+        async_cable_test,
+        schema=PORT_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
     )
     return True
 

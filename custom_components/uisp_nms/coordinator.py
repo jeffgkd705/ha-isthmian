@@ -21,6 +21,7 @@ from .const import (
     DEVICE_STATUS_ACTIVE,
     DEVICE_TYPE_SWITCH,
     DOMAIN,
+    MAC_TABLE_MAX_AGE,
     MAX_PARALLEL_REQUESTS,
     POE_OFF,
     REFRESH_AFTER_WRITE,
@@ -114,6 +115,8 @@ class UispCoordinator(DataUpdateCoordinator[dict[str, UispDeviceData]]):
         self.vlan_names: dict[int, str] = {}
         # Switch VLAN membership and when it was read (time.monotonic()).
         self._switch_vlans: dict[str, tuple[float, UispVlans]] = {}
+        # Last MAC table fetched per device and when (time.monotonic()).
+        self._mac_tables: dict[str, tuple[float, list[dict[str, Any]]]] = {}
         self._cancel_refresh: CALLBACK_TYPE | None = None
 
     async def async_write(
@@ -139,11 +142,87 @@ class UispCoordinator(DataUpdateCoordinator[dict[str, UispDeviceData]]):
             self._remember_poe_output(device_id, interface, iface)
             self.async_update_listeners()
 
+        self._schedule_refresh_after_write()
+
+    def _schedule_refresh_after_write(self) -> None:
         if self._cancel_refresh:
             self._cancel_refresh()
         self._cancel_refresh = async_call_later(
             self.hass, REFRESH_AFTER_WRITE, HassJob(self._async_refresh_after_write)
         )
+
+    async def async_port_clients(self, device_id: str, interface: str) -> dict[str, Any]:
+        """Return what the device's MAC table has learned on a port.
+
+        Entries learned on a LAG the port belongs to, or on a VLAN interface
+        of a router port (eth1.10), count for the port.
+        """
+        now = time.monotonic()
+        cached = self._mac_tables.get(device_id)
+        if cached is None or now - cached[0] >= MAC_TABLE_MAX_AGE:
+            try:
+                entries = await self.client.get_mac_table(device_id)
+            except UispError as err:
+                raise HomeAssistantError(f"Could not read the MAC table: {err}") from err
+            cached = (now, entries)
+            self._mac_tables[device_id] = cached
+        interfaces = self.data[device_id].interfaces
+        lag = next(
+            (
+                name
+                for name, iface in interfaces.items()
+                if interface in ((iface.get("lag") or {}).get("ports") or [])
+            ),
+            None,
+        )
+        names = {interface, lag} - {None}
+        clients = [
+            {
+                "mac": entry.get("mac"),
+                "hostname": entry.get("hostname") or None,
+                "vendor": entry.get("vendor") or None,
+                "ip_addresses": entry.get("addresses") or [],
+                "vlan": entry.get("vlan"),
+                "vlan_name": self.vlan_names.get(entry.get("vlan")),
+            }
+            for entry in cached[1]
+            if entry.get("interfaceId") in names
+            or str(entry.get("interfaceId", "")).startswith(f"{interface}.")
+        ]
+        clients.sort(key=lambda c: (c["hostname"] is None, (c["hostname"] or "").lower(), c["mac"] or ""))
+        return {
+            "lag": lag,
+            "lag_ports": ((interfaces.get(lag) or {}).get("lag") or {}).get("ports") if lag else None,
+            "clients": clients,
+        }
+
+    async def async_cable_test(self, device_id: str, interface: str) -> dict[str, Any]:
+        """Run a cable test on a port; the port is re-read afterwards, as it lost link."""
+        try:
+            data = await self.client.cable_test(device_id, interface)
+        except UispError as err:
+            raise HomeAssistantError(f"UISP could not run the cable test on {interface}: {err}") from err
+        finally:
+            self._schedule_refresh_after_write()
+        pairs = data.get("pairs") if isinstance(data.get("pairs"), dict) else {}
+        result: dict[str, Any] = {
+            "status": data.get("status"),
+            "length_from": data.get("lengthFrom"),
+            "length_to": data.get("lengthTo"),
+            "pairs": {
+                name.removeprefix("pair").lower(): {
+                    "state": pair.get("state"),
+                    "length_from": pair.get("lengthFrom"),
+                    "length_to": pair.get("lengthTo"),
+                }
+                for name, pair in pairs.items()
+                if isinstance(pair, dict)
+            },
+        }
+        if "status" not in data:
+            # Not the documented format; pass it on so it can be seen and supported.
+            result["raw"] = data
+        return result
 
     async def _async_refresh_after_write(self, _now: datetime) -> None:
         self._cancel_refresh = None

@@ -4,22 +4,27 @@
 // dashboard, so no Lovelace resource is needed. Config:
 //   type: custom:uisp-nms-card
 //   device: <device id or name>   the UISP device to show (the visual editor offers a picker)
-//   protect: [1, 2]               ports that can't be disabled from the card (uplink / path to HA)
+//   protect: [1, 2]               ports that can't be disabled or cable-tested from the card (uplink / path to HA)
 //   sfp: [9, 10]                  SFP ports (drawn as cages); default from the model
 //   cycle_seconds: 5              off time for "Restart PoE" (service uisp_nms.power_cycle_port)
 //   accent: '#26a69a'             header color
 //   vlan_colors: {50: '#ef6c00'}  per-VLAN colors (default: a built-in palette; VLAN 1 stays uncolored)
 // Tap a port for details and controls. Every action that cuts power or link, or changes the PoE voltage,
 // needs a second tap within 4 s. Port enable/disable only appears when its "enabled" entity has been enabled.
+// Under the ports, "Who's connected?" lists the devices the switch has seen on the selected port (service
+// uisp_nms.get_port_clients) and "Cable test" tests its cable (uisp_nms.cable_test; the port loses link meanwhile).
 const DOMAIN = 'uisp_nms';
 const T = {
   temp: 'Temp', links: 'Links', powered: 'PoE on', off: 'Off', on: 'On', restart: 'Restart', again: 'Sure?',
-  protected: 'Protected port (uplink / path to HA): it cannot be disabled from here',
+  protected: 'Protected port (uplink / path to HA): it cannot be disabled or cable-tested from here',
   noName: 'no name', noLink: 'no link', portOff: 'port disabled', port: 'Port', output: 'Output',
   noDevice: 'No UISP NMS device found. Pick a device in the card settings.',
   offline: 'Disconnected from UISP', unavailable: 'No port data: the device is not connected to UISP.',
   pick: 'Tap a port for details and controls.', lgLink: 'link 1G+', lgSlow: 'link < 1G', lgDis: 'port disabled', lgPoe: 'PoE on',
   voltageWarn: 'Check the powered device supports this voltage', up: 'up',
+  who: "Who's connected?", cable: 'Cable test', seen: 'seen', none: 'Nothing seen on this port.', via: 'via',
+  cableWarn: 'The port loses link for a few seconds during the test', cableProt: 'Protected port: no cable test',
+  pair: 'Pair', ports: 'ports',
   vlans: 'VLANs', lgUntag: 'untagged (port outline)', lgTag: 'tagged (dot)', untagged: 'untagged', tagged: 'tagged',
 };
 const VLAN_PALETTE = ['#42a5f5', '#ab47bc', '#26a69a', '#ef6c00', '#ec407a', '#7cb342', '#8d6e63', '#5c6bc0'];
@@ -68,6 +73,7 @@ class UispNmsCard extends HTMLElement {
     this._sel = null; // selected port (interface name)
     this._armed = null; // action key waiting for the second tap
     this._busy = {}; // action key -> { k, until, done(port) }
+    this._res = {}; // "clients:<port>" / "cable:<port>" -> { at, data } from the query services
   }
 
   set hass(hass) {
@@ -199,7 +205,7 @@ class UispNmsCard extends HTMLElement {
       const enSt = this._st(en[k]);
       const up = st.state === 'on';
       ports.push({
-        k, n, sfp, label: isPort ? String(n) : k,
+        k, n, sfp, label: isPort ? String(n) : k, linkId: id, cableTest: a.cable_test === true,
         name: a.description || '',
         enabled: a.enabled !== false,
         up,
@@ -295,7 +301,28 @@ class UispNmsCard extends HTMLElement {
       return this._tick();
     }
     this._armed = null;
+    if (/^(clients|cable):/.test(key)) return this._query(key);
     this._run(key);
+  }
+
+  // Services that return data: the result is kept per port and shown under the ports.
+  async _query(key) {
+    const [act, k] = key.split(':');
+    const x = this._ports().find((p) => p.k === k);
+    if (!x) return;
+    this._busy[key] = { k, done: () => false, until: Date.now() + 120000 };
+    this._tick();
+    try {
+      const res = await this._hass.callWS({
+        type: 'call_service', domain: DOMAIN, service: act === 'clients' ? 'get_port_clients' : 'cable_test',
+        service_data: { entity_id: x.linkId }, return_response: true,
+      });
+      this._res[key] = { at: new Date(), data: res.response };
+    } catch (err) {
+      this._notify(`${x.label}: ${err.message || err}`);
+    }
+    delete this._busy[key];
+    this._tick();
   }
 
   _run(key) {
@@ -483,6 +510,57 @@ class UispNmsCard extends HTMLElement {
       <div class="pacts">${poe}${outputs}${port}</div>`;
   }
 
+  _len(from, to) {
+    if (from == null && to == null) return '';
+    return from === to || to == null ? `${from} m` : from == null ? `${to} m` : `${from}–${to} m`;
+  }
+
+  // Strip under the ports for the selected port: query buttons and their latest results.
+  _tools(x) {
+    if (!x) return '';
+    const prot = (this._config.protect || []).map(String).includes(String(x.n)) || (this._config.protect || []).includes(x.k);
+    const time = (r) => r.at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const label = (k) => this._ports().find((p) => p.k === k)?.label || k;
+    let clients = '';
+    const cr = this._res[`clients:${x.k}`];
+    if (cr) {
+      const d = cr.data || {};
+      const list = d.clients || [];
+      const via = d.lag ? ` · ${T.via} ${esc(d.lag)}${d.lag_ports?.length ? ` (${T.ports} ${d.lag_ports.map((k) => esc(label(k))).join(', ')})` : ''}` : '';
+      clients = `
+        <div class="rh"><ha-icon icon="mdi:devices"></ha-icon><b>${list.length} ${T.seen}</b><small>${time(cr)}${via}</small></div>
+        ${list.length ? `<div class="cl">${list.map((c) => {
+          const name = c.hostname || c.vendor || c.mac;
+          const vl = c.vlan != null ? this._vlanLabel(c.vlan, c.vlan_name) : '';
+          return `<div class="cr" title="${esc([c.hostname, c.vendor, c.mac, ...(c.ip_addresses || []), vl].filter(Boolean).join('\n'))}">
+            <i class="vd" style="background:${this._vlanColor[c.vlan] || 'var(--fp-dim)'}"></i>
+            <b>${esc(name)}</b><span>${esc((c.ip_addresses || []).join(', '))}</span><span class="mac">${esc(c.mac)}</span><span>${esc(vl)}</span></div>`;
+        }).join('')}</div>` : `<div class="pmeta">${T.none}</div>`}`;
+    }
+    let cable = '';
+    const tr = this._res[`cable:${x.k}`];
+    if (tr) {
+      const d = tr.data || {};
+      const good = (st) => /^(ok|normal|good|pass)/i.test(st || '');
+      const pairs = Object.entries(d.pairs || {});
+      cable = `
+        <div class="rh"><ha-icon icon="mdi:cable-data"></ha-icon><b class="${good(d.status) ? 'okc' : 'bad'}">${esc(d.status ?? '?')}</b>
+          <span>${esc(this._len(d.length_from, d.length_to))}</span><small>${time(tr)}</small></div>
+        ${pairs.length ? `<div class="pairs">${pairs.map(([n, p]) => `<span>${T.pair} ${esc(n.toUpperCase())}
+          <b class="${good(p.state) ? 'okc' : 'bad'}">${esc(p.state ?? '?')}</b> ${esc(this._len(p.length_from, p.length_to))}</span>`).join('')}</div>` : ''}
+        ${d.raw ? `<pre class="raw">${esc(JSON.stringify(d.raw))}</pre>` : ''}`;
+    }
+    return `
+      <div class="tools">
+        <div class="tbtns">
+          ${this._btn(`clients:${x.k}`, 'mdi:account-search', T.who)}
+          ${x.cableTest ? this._btn(`cable:${x.k}`, 'mdi:cable-data', T.cable, { confirm: true, disabled: prot, title: prot ? T.cableProt : T.cableWarn }) : ''}
+        </div>
+        ${clients ? `<div class="res">${clients}</div>` : ''}
+        ${cable ? `<div class="res">${cable}</div>` : ''}
+      </div>`;
+  }
+
   _render(ports) {
     if (!this._hass) return;
     if (!this.shadowRoot) {
@@ -590,6 +668,27 @@ class UispNmsCard extends HTMLElement {
         .pw .l2 { background: #fb3; box-shadow: 0 0 6px #fb3; }
         .down:not(.sel) .lbl, .down:not(.sel) .jack { opacity: .65; }
 
+        /* query strip under the ports */
+        .tools { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+        .tbtns { display: flex; flex-wrap: wrap; gap: 6px; }
+        .tbtns .act { flex: 0 0 auto; }
+        .res { border-radius: 10px; background: var(--fp-panel); box-shadow: inset 0 1px 3px rgba(0,0,0,.15); padding: 6px 10px; font-size: 12px; }
+        .rh { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .rh ha-icon { --mdc-icon-size: 16px; color: var(--fp-dim); }
+        .rh small { color: var(--fp-dim); }
+        .okc { color: var(--ok); } .res b.bad { color: var(--bad); }
+        .cl { margin-top: 4px; max-height: 220px; overflow-y: auto; display: grid; grid-template-columns: 10px repeat(4, minmax(0, max-content)); justify-content: start; gap: 2px 14px; align-items: center; }
+        .cr { display: contents; }
+        .cr > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cr b { font-weight: 600; }
+        .mac { font-family: var(--code-font-family, monospace); font-size: 11px; color: var(--fp-dim); }
+        .pairs { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 4px; }
+        .raw { margin: 4px 0 0; white-space: pre-wrap; word-break: break-all; font-size: 11px; }
+        @container card (max-width: 600px) {
+          .cl { grid-template-columns: 10px minmax(0, 1fr) minmax(0, max-content); }
+          .cr .mac, .cr span:last-child { display: none; }
+        }
+
         /* selection panel */
         .pick { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--fp-name); }
         .pick ha-icon { --mdc-icon-size: 20px; color: var(--fp-dim); }
@@ -676,7 +775,7 @@ class UispNmsCard extends HTMLElement {
       </style>
       <ha-card class="${this._hass.themes?.darkMode ? 'dark' : ''}" style="${this._config.accent ? `--card-accent:${esc(this._config.accent)}` : ''}">
         ${this._header(ports)}
-        ${ports.length ? this._chassis(ports) : `<div class="meta" style="padding:12px 0 0">${T.unavailable}</div>`}
+        ${ports.length ? this._chassis(ports) + this._tools(ports.find((x) => x.k === this._sel)) : `<div class="meta" style="padding:12px 0 0">${T.unavailable}</div>`}
       </ha-card>`);
     const wrap = this.shadowRoot.querySelector('.chassis-wrap');
     if (wrap) wrap.scrollLeft = scroll;

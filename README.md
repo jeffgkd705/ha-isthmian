@@ -19,7 +19,12 @@ Per physical port (switch ports, router `ethN`; not VLANs or LAGs):
 
 A **dashboard card** showing a device's front panel, with PoE control (see [Dashboard card](#dashboard-card)).
 
-Service **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 5 s) and turns it back on with the same output — handy for a stuck access point or camera.
+Actions (services):
+- **`uisp_nms.power_cycle_port`**: turns a port's PoE off, waits (default 5 s) and turns it back on with the same output — handy for a stuck access point or camera.
+- **`uisp_nms.get_port_clients`**: lists the devices seen on a port (MAC address, hostname, vendor, IP addresses, VLAN). UISP fetches the device's MAC table for it, so it is only read when asked. Ports in a link aggregation (LAG) also list what was learned on the LAG.
+- **`uisp_nms.cable_test`**: tests the cable on a copper port and returns its status and length, per pair. **The port loses link while the test runs**, so don't test the port that connects the device to UISP.
+
+Both take any entity of the port (e.g. its link sensor) and return their result, for example in **Developer tools → Actions** with *Return response*, or in a script with `response_variable`.
 
 ## Safety
 
@@ -73,11 +78,15 @@ If the card picker does not list **UISP NMS switch**, or the dashboard shows *Cu
 - **PoE**: **Off**/**On** and **Restart** (off for 5 seconds, then back on with the same output, via the `uisp_nms.power_cycle_port` action).
 - **Output**: on ports that offer more than one PoE output (ES-8-150W: 48V 802.3af/at and 24V passive), the current one is ticked. **Check what the powered device accepts before changing it**: 48V on a 24V-passive device can damage it.
 - **Port**: enable/disable appears only for ports whose *enabled* entity you have turned on (they are disabled by default; see [Safety](#safety)).
-- **Confirm**: turning PoE or a port off, restarting PoE and changing the output need a second tap. The button turns red and says **Sure?** for 4 seconds.
+- **Who's connected?** (under the ports): lists the devices the switch has seen on the selected port, with hostname, IP address, MAC address and VLAN. Hostnames and IP addresses are what UISP knows; a device UISP has no name for shows its vendor or MAC address. An uplink port lists everything behind it.
+- **Cable test** (copper ports): shows the cable's status and length, and each pair's. The port loses link for a few seconds, so protected ports have no cable test.
+- **Confirm**: turning PoE or a port off, restarting PoE, changing the output and the cable test need a second tap. The button turns red and says **Sure?** for 4 seconds.
 
 ![Second tap to confirm turning PoE off](docs/images/card-confirm.png)
 
 ![VLANs: untagged as the port outline, tagged as dots, with the legend](docs/images/card-vlans.png)
+
+![Who's connected and cable test results for port 5](docs/images/card-tools.png)
 
 On narrow screens the ports wrap and the details move below them. Routers are drawn on one row, with the SFP port separate.
 
@@ -88,7 +97,7 @@ On narrow screens the ports wrap and the details move below them. Routers are dr
 | Option | Default | Description |
 |--------|---------|-------------|
 | `device` | first UISP NMS device | Device name or id |
-| `protect` | `[]` | Ports (numbers, or names like `eth1`) without a disable button. Protect the ports that connect Home Assistant to the device: once disabled, it could not re-enable them |
+| `protect` | `[]` | Ports (numbers, or names like `eth1`) without a disable button or cable test. Protect the ports that connect Home Assistant to the device: once disabled, it could not re-enable them |
 | `sfp` | from the model | SFP port numbers, drawn as cages |
 | `cycle_seconds` | `5` | Off time for **Restart** |
 | `accent` | teal | Header color, e.g. `'#5c6bc0'` |
@@ -98,6 +107,7 @@ On narrow screens the ports wrap and the details move below them. Routers are dr
 
 - UISP is polled every 30 seconds: one request for the device list plus one per connected device. After a change, the port is re-read 5 seconds later, because UISP answers before the device has applied it. A change takes about 3 seconds to go through UISP.
 - Data rates come from UISP's `rxrate`/`txrate` (bits per second).
+- **Who's connected** asks UISP to fetch the device's MAC table and reads it; a second lookup on the same device within 30 seconds reuses it.
 - Switch VLANs (names and port membership) come from UISP's VLAN configuration of each switch, which rarely changes, so it is read when the integration starts and then every 10 minutes rather than every 30 seconds. VLAN changes can take up to 10 minutes to show. VLAN ranges are not shown.
 - The integration's icon ships in `custom_components/uisp_nms/brand/` and is shown by Home Assistant 2026.3 or later; older versions show a placeholder. It is an original design, not Ubiquiti's logo.
 - Avoid opening UISP's API documentation page (`/nms/api-docs`) on small servers: generating it took over 100 seconds of CPU on UISP 3.1.65, made UISP restart its API and disconnected all devices.

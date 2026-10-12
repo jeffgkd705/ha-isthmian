@@ -14,7 +14,13 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.uisp_nms.api import UispAuthError, UispConnectionError
-from custom_components.uisp_nms.const import CARD_URL, DOMAIN, SERVICE_POWER_CYCLE_PORT
+from custom_components.uisp_nms.const import (
+    CARD_URL,
+    DOMAIN,
+    SERVICE_CABLE_TEST,
+    SERVICE_GET_PORT_CLIENTS,
+    SERVICE_POWER_CYCLE_PORT,
+)
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
@@ -311,3 +317,70 @@ async def test_vlan_read_failure_keeps_entities(hass: HomeAssistant, config_entr
     assert config_entry.state is ConfigEntryState.LOADED
     attrs = hass.states.get("binary_sensor.edgeswitch_8_port_3_link").attributes
     assert attrs["native_vlan"] is None
+
+
+async def test_get_port_clients(hass: HomeAssistant, config_entry, fake_uisp: FakeUisp) -> None:
+    """Clients of a port come from a fresh MAC table, including those learned on its LAG."""
+    await _setup(hass, config_entry)
+    ap = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_PORT_CLIENTS, {"entity_id": "binary_sensor.family_room_switch_2_port_8_link"},
+        blocking=True, return_response=True,
+    )
+    assert fake_uisp.mac_refreshes == 1
+    assert ap == {
+        "lag": None,
+        "lag_ports": None,
+        "clients": [
+            {"mac": "02:00:00:00:00:a1", "hostname": "office-ap", "vendor": "Ubiquiti Inc",
+             "ip_addresses": ["192.0.2.21"], "vlan": 10, "vlan_name": "General"},
+            {"mac": "02:00:00:00:00:a2", "hostname": None, "vendor": "Ubiquiti Inc",
+             "ip_addresses": [], "vlan": 50, "vlan_name": "Cameras"},
+        ],
+    }
+    # Any entity of the port works; a lookup soon after reuses the table.
+    uplink = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_PORT_CLIENTS, {"entity_id": "sensor.family_room_switch_2_port_1_rx_rate"},
+        blocking=True, return_response=True,
+    )
+    assert fake_uisp.mac_refreshes == 1
+    assert (uplink["lag"], uplink["lag_ports"]) == ("lag1", ["port1"])
+    assert [c["hostname"] for c in uplink["clients"]] == ["Desk PC", "router"]
+
+    with patch("custom_components.uisp_nms.coordinator.time.monotonic", return_value=time.monotonic() + 31):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_GET_PORT_CLIENTS, {"entity_id": "binary_sensor.family_room_switch_2_port_8_link"},
+            blocking=True, return_response=True,
+        )
+    assert fake_uisp.mac_refreshes == 2
+
+    # A device entity is not a port.
+    assert hass.states.get("binary_sensor.edgeswitch_8_connected_to_uisp")
+    with pytest.raises(ServiceValidationError, match="not an entity of a UISP NMS port"):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_GET_PORT_CLIENTS, {"entity_id": "binary_sensor.edgeswitch_8_connected_to_uisp"},
+            blocking=True, return_response=True,
+        )
+
+
+async def test_cable_test(hass: HomeAssistant, config_entry, fake_uisp: FakeUisp) -> None:
+    """A cable test returns the result per pair and refuses ports that can't test."""
+    await _setup(hass, config_entry)
+    assert hass.states.get("binary_sensor.edgeswitch_8_port_3_link").attributes["cable_test"] is True
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_CABLE_TEST, {"entity_id": "binary_sensor.edgeswitch_8_port_3_link"},
+        blocking=True, return_response=True,
+    )
+    assert fake_uisp.cable_tests == [(SWITCH_8, "port3")]
+    assert result["status"] == "normal"
+    assert (result["length_from"], result["length_to"]) == (10, 15)
+    assert result["pairs"]["a"] == {"state": "normal", "length_from": 10, "length_to": 15}
+    assert sorted(result["pairs"]) == ["a", "b", "c", "d"]
+    assert "raw" not in result
+
+    assert hass.states.get("binary_sensor.edgeswitch_8_port_8_link").attributes["cable_test"] is False
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_CABLE_TEST, {"entity_id": "binary_sensor.edgeswitch_8_port_8_link"},
+            blocking=True, return_response=True,
+        )
+    assert len(fake_uisp.cable_tests) == 1

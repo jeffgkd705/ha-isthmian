@@ -86,6 +86,7 @@ class UispLinkSensor(UispPortEntity, BinarySensorEntity):
             "poe_output": poe.get("output"),
             "poe_power": (self.iface.get("statistics") or {}).get("poePower"),
             "stp_state": stp.get("state") if stp.get("enabled") else None,
+            "cable_test": (self.iface.get("capabilities") or {}).get("supportCableTest") is True,
             **self._vlan_attributes(),
         }
 

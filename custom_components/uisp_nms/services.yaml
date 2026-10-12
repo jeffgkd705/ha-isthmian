@@ -13,3 +13,19 @@ power_cycle_port:
           min: 1
           max: 120
           unit_of_measurement: s
+get_port_clients:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: uisp_nms
+          domain: binary_sensor
+cable_test:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: uisp_nms
+          domain: binary_sensor

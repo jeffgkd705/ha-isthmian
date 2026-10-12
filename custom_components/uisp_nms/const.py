@@ -26,6 +26,15 @@ POE_OFF: Final = "off"
 PORT_INTERFACE_TYPES: Final = ("port", "eth", "sfp", "sfp+")
 
 SERVICE_POWER_CYCLE_PORT: Final = "power_cycle_port"
+SERVICE_GET_PORT_CLIENTS: Final = "get_port_clients"
+SERVICE_CABLE_TEST: Final = "cable_test"
+
+# A cable test takes several seconds on the device (seconds).
+CABLE_TEST_TIMEOUT: Final = 90
+# A MAC table fetched from a device is reused for this long, so several
+# lookups in a row cost one fetch (seconds).
+MAC_TABLE_MAX_AGE: Final = 30
+MAX_MAC_TABLE_PAGES: Final = 20
 
 # identification.type of EdgeRouters, whose ports are enabled with block/unblock.
 DEVICE_TYPE_ROUTER = "erouter"
