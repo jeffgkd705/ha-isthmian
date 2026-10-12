@@ -295,6 +295,9 @@ class UispNmsCard extends HTMLElement {
   _header(ports) {
     const dev = this._dev;
     const temp = this._num(this._one('temperature'));
+    // HA converts the temperature to the user's unit; warn at 70/80 °C either way.
+    const tUnit = this._st(this._one('temperature'))?.attributes.unit_of_measurement || '°C';
+    const [tWarn, tCrit] = tUnit === '°F' ? [158, 176] : [70, 80];
     const connected = this._st(this._one('connected'))?.state;
     const poePorts = ports.filter((x) => x.poe !== null);
     const watts = ports.reduce((s, x) => s + x.watts, 0);
@@ -314,7 +317,7 @@ class UispNmsCard extends HTMLElement {
         <div class="stats">
           ${gauge('CPU', this._num(this._one('cpu')), '%', 70, 90)}
           ${gauge('RAM', this._num(this._one('ram')), '%', 75, 90)}
-          ${this._one('temperature') ? gauge(T.temp, temp, '°C', 70, 80) : ''}
+          ${this._one('temperature') ? gauge(T.temp, temp, esc(tUnit), tWarn, tCrit) : ''}
           <div class="stat"><span class="v">${ports.filter((x) => x.up).length}<small>/${ports.length}</small></span><span class="l">${T.links}</span></div>
           ${poePorts.length ? `<div class="stat poe"><span class="v">${watts > 0 ? `${watts.toFixed(1)}<small> W</small>` : `${poePorts.filter((x) => x.poe === 'on').length}<small>/${poePorts.length}</small>`}</span><span class="l">${T.powered}</span></div>` : ''}
         </div>
@@ -437,7 +440,7 @@ class UispNmsCard extends HTMLElement {
     const scroll = this.shadowRoot.querySelector('.chassis-wrap')?.scrollLeft || 0;
     paintCard(this, `
       <style>
-        ha-card { padding: 10px 12px 12px; --accent: var(--card-accent, #26a69a); --ok: #4caf50; --slow: #ffa000; --pw: #f9a825; --bad: var(--error-color, #db4437); }
+        ha-card { display: block; container: card / inline-size; padding: 10px 12px 12px; --accent: var(--card-accent, #26a69a); --ok: #4caf50; --slow: #ffa000; --pw: #f9a825; --bad: var(--error-color, #db4437); }
         .top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
                 margin: -10px -12px 0; padding: 8px 12px; border-radius: var(--ha-card-border-radius, 12px) var(--ha-card-border-radius, 12px) 0 0;
                 background: color-mix(in srgb, var(--accent) 11%, transparent); border-bottom: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); }
@@ -494,9 +497,9 @@ class UispNmsCard extends HTMLElement {
         .cell:hover { background: var(--fp-hover); }
         .cell.sel { border-color: var(--primary-color); background: var(--fp-sel); }
         .jackrow { display: flex; align-items: center; gap: 5px; }
-        .no { min-width: 17px; font-size: 12.5px; font-weight: 700; color: var(--fp-dim); text-align: right; font-variant-numeric: tabular-nums; }
+        .no { flex: none; min-width: 17px; font-size: 12.5px; font-weight: 700; color: var(--fp-dim); text-align: right; font-variant-numeric: tabular-nums; }
         .up .no { color: var(--fp-up); } .slow .no { color: var(--fp-slow); }
-        .jack { position: relative; flex: 1 1 64px; max-width: 84px; height: 28px; border-radius: 3px; background: var(--fp-jack); border: 1px solid var(--fp-jack-edge);
+        .jack { position: relative; flex: 1 1 64px; min-width: 0; max-width: 84px; height: 28px; border-radius: 3px; background: var(--fp-jack); border: 1px solid var(--fp-jack-edge);
                 box-shadow: inset 0 2px 4px rgba(0,0,0,.8); display: flex; align-items: center; justify-content: center; }
         .rj .jack::before { content: ''; position: absolute; left: 50%; width: 34%; height: 5px; transform: translateX(-50%);
                             background: var(--fp-jack); border: 1px solid var(--fp-jack-edge); }
@@ -553,7 +556,7 @@ class UispNmsCard extends HTMLElement {
         .pinfo { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
         /* narrow card or many ports: panel goes under the ports, info left and buttons right */
         .stack { flex-direction: column; }
-        .stack .side { flex: 0 0 auto; min-height: 96px; }
+        .stack .side { flex: 0 0 auto; min-height: 0; }
         .stack .sidein { position: static; flex-direction: row; align-items: center; gap: 16px; }
         .stack .pinfo { flex: 1; }
         .stack .pacts { margin-top: 0; flex: none; }
@@ -563,7 +566,7 @@ class UispNmsCard extends HTMLElement {
         .stack .legend { display: flex; flex-wrap: wrap; gap: 3px 14px; margin-top: 0; }
         @container (max-width: 1180px) {
           .chassis { flex-direction: column; }
-          .side { flex: 0 0 auto; min-height: 96px; }
+          .side { flex: 0 0 auto; min-height: 0; }
           .sidein { position: static; flex-direction: row; align-items: center; gap: 16px; }
           .pinfo { flex: 1; }
           .pacts { margin-top: 0; flex: none; }
@@ -589,8 +592,8 @@ class UispNmsCard extends HTMLElement {
           .prow { flex-wrap: wrap; }
           .act { flex: 1 1 110px; width: auto; }
         }
-        /* phones: title on its own line, stat tiles below it (wrapping, no scrolling) */
-        @media (max-width: 600px) {
+        /* narrow card: title on its own line, stat tiles below it (wrapping, no scrolling) */
+        @container card (max-width: 600px) {
           .stats { width: 100%; flex-wrap: wrap; }
           .stat { flex: 1 1 56px; min-width: 0; }
         }
