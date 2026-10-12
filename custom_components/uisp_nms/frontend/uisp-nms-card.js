@@ -25,6 +25,7 @@ const T = {
   who: "Who's connected?", cable: 'Cable test', seen: 'seen', none: 'Nothing seen on this port.', via: 'via',
   cableWarn: 'The port loses link for a few seconds during the test', cableProt: 'Protected port: no cable test',
   pair: 'Pair', ports: 'ports',
+  fastPairs: 'At 10/100 Mbit/s only pairs A and B are used. Many such devices tie C and D together, which reads as a fault: to check the cable itself, unplug it at the far end and test again.',
   vlans: 'VLANs', lgUntag: 'untagged (port outline)', lgTag: 'tagged (dot)', untagged: 'untagged', tagged: 'tagged',
 };
 const VLAN_PALETTE = ['#42a5f5', '#ab47bc', '#26a69a', '#ef6c00', '#ec407a', '#7cb342', '#8d6e63', '#5c6bc0'];
@@ -317,7 +318,8 @@ class UispNmsCard extends HTMLElement {
         type: 'call_service', domain: DOMAIN, service: act === 'clients' ? 'get_port_clients' : 'cable_test',
         service_data: { entity_id: x.linkId }, return_response: true,
       });
-      this._res[key] = { at: new Date(), data: res.response };
+      // The link speed before the test: a cable test drops the link.
+      this._res[key] = { at: new Date(), data: res.response, speed: x.rawSpeed };
     } catch (err) {
       this._notify(`${x.label}: ${err.message || err}`);
     }
@@ -510,6 +512,14 @@ class UispNmsCard extends HTMLElement {
       <div class="pacts">${poe}${outputs}${port}</div>`;
   }
 
+  // A 10/100 link where pairs A and B test good and only C or D (unused at that speed) do not.
+  _fastPairsOnly(r) {
+    const good = (st) => /^(ok|normal|good|pass)/i.test(st || '');
+    const pairs = r.data?.pairs || {};
+    return /^10{1,2}-/.test(r.speed || '') && good(pairs.a?.state) && good(pairs.b?.state)
+      && ['c', 'd'].some((n) => pairs[n] && !good(pairs[n].state));
+  }
+
   _len(from, to) {
     if (from == null && to == null) return '';
     return from === to || to == null ? `${from} m` : from == null ? `${to} m` : `${from}–${to} m`;
@@ -552,6 +562,7 @@ class UispNmsCard extends HTMLElement {
           <span>${esc(this._len(d.length_from, d.length_to))}</span><small>${time(tr)}</small></div>
         ${pairs.length ? `<div class="pairs">${pairs.map(([n, p]) => `<span>${T.pair} ${esc(n.toUpperCase())}
           <b class="${good(p.state) ? 'okc' : 'bad'}">${esc(p.state ?? '?')}</b> ${esc(this._len(p.length_from, p.length_to))}</span>`).join('')}</div>` : ''}
+        ${this._fastPairsOnly(tr) ? `<div class="note">${T.fastPairs}</div>` : ''}
         ${d.raw ? `<pre class="raw">${esc(JSON.stringify(d.raw))}</pre>` : ''}`;
     }
     return `
@@ -687,6 +698,7 @@ class UispNmsCard extends HTMLElement {
         .cr b { font-weight: 600; }
         .mac { font-family: var(--code-font-family, monospace); font-size: 11px; color: var(--fp-dim); }
         .pairs { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 4px; }
+        .note { margin-top: 4px; font-size: 11.5px; color: var(--fp-dim); }
         .raw { margin: 4px 0 0; white-space: pre-wrap; word-break: break-all; font-size: 11px; }
         @container card (max-width: 600px) {
           .cl { grid-template-columns: 10px minmax(0, 1fr) minmax(0, 1fr); }

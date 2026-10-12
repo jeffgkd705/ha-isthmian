@@ -79,7 +79,7 @@ If the card picker does not list **UISP NMS switch**, or the dashboard shows *Cu
 - **Output**: on ports that offer more than one PoE output (ES-8-150W: 48V 802.3af/at and 24V passive), the current one is ticked. **Check what the powered device accepts before changing it**: 48V on a 24V-passive device can damage it.
 - **Port**: enable/disable appears only for ports whose *enabled* entity you have turned on (they are disabled by default; see [Safety](#safety)).
 - **Who's connected?** (under the ports): lists the devices the switch has seen on the selected port, with hostname, IP address, MAC address and VLAN. Hostnames and IP addresses are what UISP knows; a device UISP has no name for shows its vendor or MAC address. An uplink port lists everything behind it.
-- **Cable test** (copper ports): shows the cable's status and length, and each pair's. The port loses link for a few seconds, so protected ports have no cable test.
+- **Cable test** (copper ports): shows the cable's status and length, and each pair's. The port loses link for a few seconds, so protected ports have no cable test. On a 10/100 Mbit/s link only pairs A and B are used, and many such devices tie C and D together, which the test reports as a fault; the card then says so. To test the cable itself, unplug it at the far end: a good cable shows all pairs open at its length.
 - **Confirm**: turning PoE or a port off, restarting PoE, changing the output and the cable test need a second tap. The button turns red and says **Sure?** for 4 seconds.
 
 ![Second tap to confirm turning PoE off](docs/images/card-confirm.png)
